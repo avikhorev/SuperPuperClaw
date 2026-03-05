@@ -1,0 +1,99 @@
+import re
+import logging
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+logger = logging.getLogger(__name__)
+
+DAY_MAP = {
+    "monday": "mon",
+    "tuesday": "tue",
+    "wednesday": "wed",
+    "thursday": "thu",
+    "friday": "fri",
+    "saturday": "sat",
+    "sunday": "sun",
+}
+
+
+def parse_reminder_request(text: str) -> dict | None:
+    """Parse a natural language reminder request into a cron expression and description."""
+    text_lower = text.lower()
+
+    # Extract time
+    hour = 9
+    minute = 0
+    time_match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text_lower)
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2) or 0)
+        meridiem = time_match.group(3)
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+
+    # Extract day of week
+    day_of_week = "*"
+    for day_name, abbr in DAY_MAP.items():
+        if day_name in text_lower:
+            day_of_week = abbr
+            break
+
+    cron = f"{minute} {hour} * * {day_of_week}"
+
+    # Extract description: strip the scheduling part
+    description = re.sub(
+        r"remind(?:\s+me)?|every\s+\w+|at\s+\d+(?::\d+)?\s*(?:am|pm)?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+    if not description:
+        description = text.strip()
+
+    return {"cron": cron, "description": description}
+
+
+class ReminderScheduler:
+    def __init__(self, bot):
+        self.bot = bot
+        self.scheduler = AsyncIOScheduler()
+
+    def start(self):
+        self.scheduler.start()
+
+    def stop(self):
+        if self.scheduler.running:
+            self.scheduler.shutdown(wait=False)
+
+    def add_job(self, telegram_id: int, job_id: int, cron: str, description: str):
+        parts = cron.split()
+        trigger = CronTrigger(
+            minute=parts[0],
+            hour=parts[1],
+            day=parts[2],
+            month=parts[3],
+            day_of_week=parts[4],
+        )
+        self.scheduler.add_job(
+            self._send_reminder,
+            trigger=trigger,
+            args=[telegram_id, job_id, description],
+            id=f"job_{job_id}",
+            replace_existing=True,
+        )
+
+    def remove_job(self, job_id: int):
+        try:
+            self.scheduler.remove_job(f"job_{job_id}")
+        except Exception:
+            pass
+
+    async def _send_reminder(self, telegram_id: int, job_id: int, description: str):
+        try:
+            await self.bot.send_message(chat_id=telegram_id, text=f"⏰ Reminder: {description}")
+        except Exception as e:
+            logger.error("Reminder delivery failed for job %s (user %s): %s", job_id, telegram_id, e)
+            # Failure tracking is handled by UserDB.increment_job_fail
+            # The caller (main loop) is responsible for calling increment_job_fail
