@@ -131,6 +131,18 @@ fi
 echo "Starting bot container..."
 $DC -f "$INSTALL_DIR/docker-compose.yml" up -d --build
 
+# --- Copy Claude credentials into container volume ---
+# The volume is fresh on first install; copy host credentials so the bot is authenticated.
+if [ -f "$HOME/.claude/.credentials.json" ]; then
+    VOLUME_NAME="$(basename "$INSTALL_DIR")_claude_auth"
+    docker run --rm \
+        -v "${VOLUME_NAME}:/target" \
+        -v "$HOME/.claude:/source:ro" \
+        alpine sh -c "cp -r /source/. /target/ && chown -R 1000:1000 /target" \
+        2>/dev/null && echo "  ✓ Claude credentials copied to container"
+    $DC -f "$INSTALL_DIR/docker-compose.yml" restart bot >/dev/null 2>&1
+fi
+
 
 echo ""
 echo "Done!"
