@@ -109,6 +109,12 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
 done
 
 # --- Start bot ---
+# Ensure data dir exists and is writable by botuser (uid 1000) inside container
+mkdir -p "$INSTALL_DIR/data"
+if [ "$(stat -c '%u' "$INSTALL_DIR/data" 2>/dev/null || stat -f '%u' "$INSTALL_DIR/data")" != "1000" ]; then
+    sudo chown -R 1000:1000 "$INSTALL_DIR/data" 2>/dev/null || true
+fi
+
 echo "Starting bot container..."
 $DC -f "$INSTALL_DIR/docker-compose.yml" up -d --build
 
