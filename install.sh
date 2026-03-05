@@ -75,7 +75,7 @@ fi
 if ! claude auth status &>/dev/null 2>&1; then
     echo "Claude Code authentication required."
     echo "A browser window will open — sign in with your Claude account."
-    claude login < /dev/tty
+    claude auth login < /dev/tty
 fi
 echo "  ✓ Claude Code authenticated"
 

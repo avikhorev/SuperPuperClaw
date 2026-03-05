@@ -82,7 +82,7 @@ def main():
     else:
         print("  Not authenticated. Running 'claude login'...")
         try:
-            subprocess.run(["claude", "login"], check=True)
+            subprocess.run(["claude", "auth", "login"], check=True)
             print("  ✓ Claude Code authenticated")
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("  ✗ Could not authenticate automatically.")
