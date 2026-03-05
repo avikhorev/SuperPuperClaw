@@ -30,4 +30,13 @@ def build_tool_registry(user_storage, has_google: bool) -> list:
         from bot.tools.gmail import list_emails, send_email
         from bot.tools.google_drive import search_drive_files
         tools += [list_calendar_events, create_calendar_event, list_emails, send_email, search_drive_files]
+
+    if user_storage is not None:
+        if user_storage.load_imap_config():
+            from bot.tools.imap_email import list_emails_imap, send_email_imap
+            tools += [list_emails_imap, send_email_imap]
+        if user_storage.load_calendar_config():
+            from bot.tools.ics_calendar import list_calendar_events_ics
+            tools.append(list_calendar_events_ics)
+
     return tools

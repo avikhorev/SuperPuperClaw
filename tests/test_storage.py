@@ -34,3 +34,20 @@ def test_delete_removes_user_dir(tmp_path):
     s.write_memory("something")
     s.delete()
     assert not (tmp_path / "users" / "99").exists()
+
+def test_imap_config_absent_by_default(storage):
+    assert storage.load_imap_config() is None
+
+def test_save_and_load_imap_config(storage):
+    cfg = {"email": "test@gmail.com", "password": "secret", "imap_host": "imap.gmail.com", "imap_port": 993, "smtp_host": "smtp.gmail.com", "smtp_port": 587}
+    storage.save_imap_config(cfg)
+    loaded = storage.load_imap_config()
+    assert loaded["email"] == "test@gmail.com"
+
+def test_calendar_config_absent_by_default(storage):
+    assert storage.load_calendar_config() is None
+
+def test_save_and_load_calendar_config(storage):
+    storage.save_calendar_config({"ics_url": "https://example.com/calendar.ics"})
+    loaded = storage.load_calendar_config()
+    assert loaded["ics_url"] == "https://example.com/calendar.ics"

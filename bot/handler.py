@@ -18,6 +18,8 @@ HELP_TEXT_BASE = """I'm your personal AI assistant!
 
 📅 *Productivity*
 • Reminders — "remind me every Monday at 9am to..."
+• Email — type /connect email to link your inbox
+• Calendar — type /connect calendar to link your calendar
 
 🔍 *Research*
 • Web search & page summaries
@@ -142,6 +144,16 @@ class BotHandler:
             lines.append(f"Google: {google_status}")
         else:
             lines.append("Google: not configured by admin")
+
+        storage = self._get_storage(uid)
+        imap_cfg = storage.load_imap_config()
+        email_status = f"✅ {imap_cfg['email']}" if imap_cfg else "❌ Not connected — use /connect email"
+        lines.append(f"Email: {email_status}")
+
+        cal_cfg = storage.load_calendar_config()
+        cal_status = "✅ Connected" if cal_cfg else "❌ Not connected — use /connect calendar"
+        lines.append(f"Calendar: {cal_status}")
+
         await update.message.reply_text("\n".join(lines))
 
     async def connect_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -149,18 +161,224 @@ class BotHandler:
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
             return
-        if not self.config.google_client_id:
-            await update.message.reply_text("Google integration is not configured by the admin.")
-            return
-        from bot.oauth import OAuthManager
-        manager = OAuthManager(self.config.google_client_id, self.config.google_client_secret)
-        url = manager.get_auth_url()
-        await update.message.reply_text(
-            f"Click to authorize Google:\n{url}\n\n"
-            "After authorizing, copy the full URL from your browser address bar "
-            "(even if it shows an error) and paste it here."
-        )
-        ctx.user_data["awaiting_oauth"] = True
+
+        args = ctx.args or []
+        subcommand = args[0].lower() if args else ""
+
+        if subcommand == "google":
+            if not self.config.google_client_id:
+                await update.message.reply_text("Google integration is not configured by the admin.")
+                return
+            from bot.oauth import OAuthManager
+            manager = OAuthManager(self.config.google_client_id, self.config.google_client_secret)
+            url = manager.get_auth_url()
+            await update.message.reply_text(
+                f"Click to authorize Google:\n{url}\n\n"
+                "After authorizing, copy the full URL from your browser address bar "
+                "(even if it shows an error) and paste it here."
+            )
+            ctx.user_data["awaiting_oauth"] = True
+
+        elif subcommand == "email":
+            await update.message.reply_text(
+                "Let's connect your email.\n\nWhat's your email address?"
+            )
+            ctx.user_data["connect_step"] = "email_address"
+
+        elif subcommand == "calendar":
+            await update.message.reply_text(
+                "Let's connect your calendar. Which provider do you use?\n\n"
+                "1 — Google Calendar\n"
+                "2 — Outlook / Microsoft\n"
+                "3 — Apple iCloud\n"
+                "4 — Other (I'll paste the ICS URL directly)"
+            )
+            ctx.user_data["connect_step"] = "calendar_provider"
+
+        else:
+            lines = ["What would you like to connect?\n"]
+            if self.config.google_client_id:
+                lines.append("/connect google — Gmail, Calendar, Drive")
+            lines.append("/connect email — Email (any provider)")
+            lines.append("/connect calendar — Calendar (any provider)")
+            await update.message.reply_text("\n".join(lines))
+
+    async def _handle_connect_flow(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Handle multi-step /connect conversations. Returns True if message was consumed."""
+        step = ctx.user_data.get("connect_step")
+        if not step:
+            return False
+
+        uid = update.effective_user.id
+        text = (update.message.text or "").strip()
+
+        # ── Email flow ────────────────────────────────────────────────────────
+        if step == "email_address":
+            if "@" not in text:
+                await update.message.reply_text("That doesn't look like an email address. Please try again.")
+                return True
+            ctx.user_data["connect_email"] = text
+            from bot.imap_providers import get_provider_settings, get_app_password_instructions
+            settings = get_provider_settings(text)
+            instructions = get_app_password_instructions(text)
+            if settings:
+                ctx.user_data["connect_imap_settings"] = settings
+                await update.message.reply_text(instructions, parse_mode="Markdown")
+                ctx.user_data["connect_step"] = "email_password"
+            else:
+                await update.message.reply_text(
+                    "I don't recognise this email provider automatically.\n\n"
+                    "Please enter your IMAP server (e.g. `imap.yourprovider.com`):",
+                    parse_mode="Markdown"
+                )
+                ctx.user_data["connect_step"] = "email_imap_host"
+            return True
+
+        if step == "email_imap_host":
+            ctx.user_data["connect_imap_host"] = text
+            await update.message.reply_text("IMAP port? (usually `993`)", parse_mode="Markdown")
+            ctx.user_data["connect_step"] = "email_imap_port"
+            return True
+
+        if step == "email_imap_port":
+            try:
+                ctx.user_data["connect_imap_port"] = int(text)
+            except ValueError:
+                await update.message.reply_text("Please enter a number (e.g. 993).")
+                return True
+            await update.message.reply_text("SMTP server? (e.g. `smtp.yourprovider.com`)", parse_mode="Markdown")
+            ctx.user_data["connect_step"] = "email_smtp_host"
+            return True
+
+        if step == "email_smtp_host":
+            ctx.user_data["connect_smtp_host"] = text
+            await update.message.reply_text("SMTP port? (usually `587`)", parse_mode="Markdown")
+            ctx.user_data["connect_step"] = "email_smtp_port"
+            return True
+
+        if step == "email_smtp_port":
+            try:
+                ctx.user_data["connect_smtp_port"] = int(text)
+            except ValueError:
+                await update.message.reply_text("Please enter a number (e.g. 587).")
+                return True
+            await update.message.reply_text("Now enter your email password (or app password):")
+            ctx.user_data["connect_step"] = "email_password"
+            return True
+
+        if step == "email_password":
+            email_addr = ctx.user_data.get("connect_email", "")
+            imap_settings = ctx.user_data.get("connect_imap_settings")
+            if imap_settings:
+                imap_host, imap_port, smtp_host, smtp_port = imap_settings
+            else:
+                imap_host = ctx.user_data.get("connect_imap_host", "")
+                imap_port = ctx.user_data.get("connect_imap_port", 993)
+                smtp_host = ctx.user_data.get("connect_smtp_host", "")
+                smtp_port = ctx.user_data.get("connect_smtp_port", 587)
+
+            # Test the connection before saving
+            await ctx.bot.send_chat_action(chat_id=uid, action="typing")
+            import imaplib, ssl
+            try:
+                ctx_ssl = ssl.create_default_context()
+                with imaplib.IMAP4_SSL(imap_host, imap_port, ssl_context=ctx_ssl) as imap:
+                    imap.login(email_addr, text)
+            except Exception as e:
+                for k in ("connect_step", "connect_email", "connect_imap_settings",
+                          "connect_imap_host", "connect_imap_port",
+                          "connect_smtp_host", "connect_smtp_port"):
+                    ctx.user_data.pop(k, None)
+                await update.message.reply_text(
+                    f"Could not connect to your email: {e}\n\n"
+                    "Please double-check your address and password, then try /connect email again."
+                )
+                return True
+
+            storage = self._get_storage(uid)
+            storage.save_imap_config({
+                "email": email_addr,
+                "password": text,
+                "imap_host": imap_host,
+                "imap_port": imap_port,
+                "smtp_host": smtp_host,
+                "smtp_port": smtp_port,
+            })
+            for k in ("connect_step", "connect_email", "connect_imap_settings",
+                      "connect_imap_host", "connect_imap_port",
+                      "connect_smtp_host", "connect_smtp_port"):
+                ctx.user_data.pop(k, None)
+            await update.message.reply_text(f"✅ Email connected ({email_addr})")
+            return True
+
+        # ── Calendar flow ─────────────────────────────────────────────────────
+        if step == "calendar_provider":
+            CALENDAR_INSTRUCTIONS = {
+                "1": (
+                    "To get your Google Calendar URL:\n\n"
+                    "1. Open Google Calendar (calendar.google.com)\n"
+                    "2. Click ⚙️ *Settings* (top right)\n"
+                    "3. On the left, click your calendar name\n"
+                    "4. Scroll down to *Secret address in iCal format*\n"
+                    "5. Copy that URL and paste it here"
+                ),
+                "2": (
+                    "To get your Outlook calendar URL:\n\n"
+                    "1. Go to outlook.live.com/calendar\n"
+                    "2. Click the ⚙️ gear → *View all Outlook settings*\n"
+                    "3. Go to *Calendar* → *Shared calendars*\n"
+                    "4. Under *Publish a calendar*, select your calendar and choose *Can view all details*\n"
+                    "5. Click *Publish*, then copy the ICS link and paste it here"
+                ),
+                "3": (
+                    "To get your iCloud calendar URL:\n\n"
+                    "1. Go to icloud.com/calendar\n"
+                    "2. Click the sharing icon (📡) next to your calendar name\n"
+                    "3. Check *Public Calendar*\n"
+                    "4. Copy the URL shown and paste it here"
+                ),
+                "4": (
+                    "Paste your ICS calendar URL here.\n"
+                    "It usually ends in `.ics` or contains `ical` in the address."
+                ),
+            }
+            instructions = CALENDAR_INSTRUCTIONS.get(text)
+            if not instructions:
+                await update.message.reply_text("Please reply with 1, 2, 3 or 4.")
+                return True
+            await update.message.reply_text(instructions, parse_mode="Markdown")
+            ctx.user_data["connect_step"] = "calendar_url"
+            return True
+
+        if step == "calendar_url":
+            url = text
+            if not url.startswith("http"):
+                await update.message.reply_text(
+                    "That doesn't look like a URL. Please paste the full calendar link (starting with https://)."
+                )
+                return True
+            # Verify it fetches and parses
+            await ctx.bot.send_chat_action(chat_id=uid, action="typing")
+            try:
+                import httpx as _httpx
+                from icalendar import Calendar
+                resp = _httpx.get(url, timeout=15, follow_redirects=True)
+                resp.raise_for_status()
+                Calendar.from_ical(resp.content)
+            except Exception as e:
+                ctx.user_data.pop("connect_step", None)
+                await update.message.reply_text(
+                    f"Could not read that calendar URL: {e}\n\n"
+                    "Please double-check the URL and try /connect calendar again."
+                )
+                return True
+            storage = self._get_storage(uid)
+            storage.save_calendar_config({"ics_url": url})
+            ctx.user_data.pop("connect_step", None)
+            await update.message.reply_text("✅ Calendar connected (read-only)")
+            return True
+
+        return False
 
     async def message(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
@@ -188,6 +406,10 @@ class BotHandler:
                 )
             except Exception as e:
                 await update.message.reply_text(f"Authorization failed: {e}")
+            return
+
+        # Multi-step connect flows (email, calendar)
+        if await self._handle_connect_flow(update, ctx):
             return
 
         text = update.message.text or ""
