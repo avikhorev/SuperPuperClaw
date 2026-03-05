@@ -42,9 +42,6 @@ def list_emails_imap(max_results: int = 10, query: str = "ALL", storage=None) ->
                 return "No emails found."
             results = []
             for msg_id in reversed(ids):
-                _, msg_data = imap.fetch(msg_id, "(ENVELOPE)")
-                envelope = msg_data[0][1].decode("utf-8", errors="replace")
-                # Simple extraction — parse Subject and From from raw envelope
                 _, raw = imap.fetch(msg_id, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
                 headers_raw = raw[0][1]
                 msg = email_lib.message_from_bytes(headers_raw)
