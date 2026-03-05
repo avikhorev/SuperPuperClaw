@@ -97,17 +97,26 @@ cd "$INSTALL_DIR"
 # --- Run interactive setup ---
 python3 setup.py "$@"
 
-# --- Add botadmin alias ---
-ALIAS_LINE="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
-alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'
-alias botstatus='$DC -f $INSTALL_DIR/docker-compose.yml ps && echo \"\" && $DC -f $INSTALL_DIR/docker-compose.yml logs --tail=20 bot'"
+# --- Add shell aliases ---
+add_alias() {
+    local name="$1" definition="$2" rc_file="$3"
+    [ -f "$rc_file" ] || return
+    # Remove old definition if present, then append fresh
+    sed -i "/alias ${name}=/d" "$rc_file"
+    echo "$definition" >> "$rc_file"
+}
+
+ALIAS_BOTADMIN="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'"
+ALIAS_BOTAUTH="alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
+ALIAS_BOTSTATUS="alias botstatus='$DC -f $INSTALL_DIR/docker-compose.yml ps && echo && $DC -f $INSTALL_DIR/docker-compose.yml logs --tail=20 bot'"
 
 for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
-    if [ -f "$rc_file" ] && ! grep -q "botadmin" "$rc_file"; then
-        echo "$ALIAS_LINE" >> "$rc_file"
-        echo "  ✓ Added 'botadmin' alias to $rc_file"
-    fi
+    [ -f "$rc_file" ] || continue
+    add_alias "botadmin"  "$ALIAS_BOTADMIN"  "$rc_file"
+    add_alias "botauth"   "$ALIAS_BOTAUTH"   "$rc_file"
+    add_alias "botstatus" "$ALIAS_BOTSTATUS" "$rc_file"
 done
+echo "  ✓ Shell aliases updated (botadmin, botauth, botstatus)"
 
 # --- Start bot ---
 # Ensure data dir exists and is writable by botuser (uid 1000) inside container
