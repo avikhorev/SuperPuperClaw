@@ -89,7 +89,8 @@ cd "$INSTALL_DIR"
 python3 setup.py < /dev/tty
 
 # --- Add botadmin alias ---
-ALIAS_LINE="alias botadmin='docker compose -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'"
+ALIAS_LINE="alias botadmin='docker compose -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
+alias botauth='docker compose -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
 
 for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rc_file" ] && ! grep -q "botadmin" "$rc_file"; then

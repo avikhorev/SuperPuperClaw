@@ -47,10 +47,21 @@ curl -fsSL https://raw.githubusercontent.com/avikhorev/SuperPuperClaw/main/insta
 
 This will:
 1. Check for Docker and Git
-2. Clone the repo
-3. Run the interactive setup (`setup.py`)
-4. Start the bot with `docker compose up -d`
-5. Add a `botadmin` shell alias
+2. Install Node.js + Claude Code CLI if needed
+3. Clone the repo
+4. Run the interactive setup (`setup.py`)
+5. Start the bot and prompt for Claude account login
+6. Add `botadmin` and `botauth` shell aliases
+
+### Re-authenticating Claude Code
+
+If credentials expire or the volume is lost:
+
+```bash
+botauth
+```
+
+Or directly: `docker compose exec -it bot claude auth login`
 
 ## Manual setup
 
