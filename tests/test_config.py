@@ -4,28 +4,18 @@ from bot.config import Config
 
 def test_config_loads_from_env(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN", "test_token")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
     monkeypatch.setenv("DATA_DIR", "/tmp/testdata")
     config = Config()
     assert config.telegram_token == "test_token"
-    assert config.anthropic_api_key == "test_key"
     assert config.data_dir == "/tmp/testdata"
 
 def test_config_raises_on_missing_required(monkeypatch):
     monkeypatch.delenv("TELEGRAM_TOKEN", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(ValueError):
-        Config()
-
-def test_config_raises_on_single_missing_var(monkeypatch):
-    monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         Config()
 
 def test_google_keys_default_to_none(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "key")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
     config = Config()

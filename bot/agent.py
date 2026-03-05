@@ -34,7 +34,9 @@ def _build_tool_schema(fn) -> dict:
     for pname, param in sig.parameters.items():
         if pname == "storage":
             continue
-        if param.annotation in (int, float):
+        if param.annotation is int:
+            schema[pname] = int
+        elif param.annotation is float:
             schema[pname] = float
         else:
             schema[pname] = str
@@ -100,7 +102,7 @@ class AgentRunner:
             system_prompt=system,
             allowed_tools=[],
             mcp_servers={"tools": server},
-            permission_mode="dontAsk",
+            permission_mode="bypassPermissions",
             max_turns=10,
         )
 
