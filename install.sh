@@ -131,27 +131,6 @@ fi
 echo "Starting bot container..."
 $DC -f "$INSTALL_DIR/docker-compose.yml" up -d --build
 
-# --- Save admin ID ---
-# If no admin saved yet, wait for first /start and write it to .env
-if ! grep -q "ADMIN_TELEGRAM_ID" "$INSTALL_DIR/.env" 2>/dev/null; then
-    if command -v sqlite3 &>/dev/null; then
-        echo ""
-        echo "Almost done! Send /start to your bot on Telegram to register as admin..."
-        for i in $(seq 1 60); do
-            ADMIN_ID=$(sqlite3 "$INSTALL_DIR/data/global.db" \
-                "SELECT telegram_id FROM users WHERE is_admin=1 LIMIT 1" 2>/dev/null || true)
-            if [ -n "$ADMIN_ID" ]; then
-                echo "ADMIN_TELEGRAM_ID=$ADMIN_ID" >> "$INSTALL_DIR/.env"
-                echo "  ✓ Admin registered: $ADMIN_ID"
-                break
-            fi
-            sleep 2
-        done
-        if [ -z "$ADMIN_ID" ]; then
-            echo "  (Skipped — send /start to the bot to become admin)"
-        fi
-    fi
-fi
 
 echo ""
 echo "Done!"
