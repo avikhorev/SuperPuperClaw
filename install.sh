@@ -17,6 +17,15 @@ for cmd in docker git python3; do
     fi
 done
 
+# --- Docker permissions ---
+if ! docker info &>/dev/null 2>&1; then
+    echo "Adding current user to docker group..."
+    sudo usermod -aG docker "$USER"
+    echo "  ✓ Added $USER to docker group"
+    echo "  Applying group change for this session..."
+    exec sg docker "$0" "$@"
+fi
+
 if ! docker compose version &>/dev/null 2>&1; then
     echo "Docker Compose plugin not found — installing..."
     OS="$(uname -s)"
