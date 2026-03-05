@@ -106,15 +106,17 @@ class AgentRunner:
             max_turns=10,
         )
 
+        text_blocks = []
         result_text = ""
         async with ClaudeSDKClient(options=options) as client:
             await client.query(user_message)
             async for message in client.receive_response():
-                if isinstance(message, ResultMessage):
-                    result_text = message.result
-                elif isinstance(message, AssistantMessage):
+                if isinstance(message, AssistantMessage):
                     for block in message.content:
-                        if isinstance(block, TextBlock) and not result_text:
-                            result_text = block.text
+                        if isinstance(block, TextBlock) and block.text:
+                            text_blocks.append(block.text)
+                elif isinstance(message, ResultMessage):
+                    if message.result:
+                        result_text = message.result
 
-        return result_text
+        return result_text or "\n".join(text_blocks) or "Sorry, I couldn't generate a response."
