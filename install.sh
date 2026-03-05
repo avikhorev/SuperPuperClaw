@@ -18,9 +18,35 @@ for cmd in docker git python3; do
 done
 
 if ! docker compose version &>/dev/null 2>&1; then
-    echo "Error: 'docker compose' plugin is required."
-    echo "See https://docs.docker.com/compose/install/"
-    exit 1
+    echo "Docker Compose plugin not found — installing..."
+    OS="$(uname -s)"
+    if [ "$OS" = "Darwin" ]; then
+        if command -v brew &>/dev/null; then
+            brew install docker-compose
+            mkdir -p ~/.docker/cli-plugins
+            ln -sfn "$(brew --prefix)/opt/docker-compose/bin/docker-compose" ~/.docker/cli-plugins/docker-compose
+        else
+            echo "Error: Homebrew is required to install Docker Compose on macOS."
+            echo "Install Homebrew: https://brew.sh"
+            exit 1
+        fi
+    elif [ "$OS" = "Linux" ]; then
+        COMPOSE_VERSION="$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | cut -d'"' -f4)"
+        mkdir -p ~/.docker/cli-plugins
+        curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+            -o ~/.docker/cli-plugins/docker-compose
+        chmod +x ~/.docker/cli-plugins/docker-compose
+    else
+        echo "Error: Unsupported OS '$OS'. Install Docker Compose manually:"
+        echo "See https://docs.docker.com/compose/install/"
+        exit 1
+    fi
+    if ! docker compose version &>/dev/null 2>&1; then
+        echo "Error: Docker Compose installation failed. Please install manually:"
+        echo "See https://docs.docker.com/compose/install/"
+        exit 1
+    fi
+    echo "  ✓ Docker Compose installed"
 fi
 
 # --- Clone or update ---
