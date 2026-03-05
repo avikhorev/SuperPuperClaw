@@ -46,7 +46,7 @@ class AgentRunner:
         system = build_system_prompt(self.storage)
         anthropic_tools = self._build_anthropic_tools()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         kwargs = dict(
             model="claude-sonnet-4-6",
             max_tokens=4096,
@@ -82,7 +82,7 @@ class AgentRunner:
         fn = self._tool_map.get(name)
         if not fn:
             return f"Unknown tool: {name}"
-        if name == "update_memory":
+        if getattr(fn, "_needs_storage", False):
             inputs = {**inputs, "storage": self.storage}
         try:
             return fn(**inputs)
