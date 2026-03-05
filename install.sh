@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="https://github.com/OWNER/REPO.git"
+REPO_URL="https://github.com/avikhorev/SuperPuperClaw.git"
 INSTALL_DIR="$HOME/mybot"
 
 echo ""
