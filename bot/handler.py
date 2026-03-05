@@ -23,26 +23,8 @@ def _build_help_text(config, storage) -> str:
 
     lines = ["*Your personal AI assistant*\n"]
 
-    # --- Connections ---
-    lines.append("*Connected integrations:*")
-    if has_google:
-        lines.append("✅ Google — Gmail, Calendar, Drive")
-    elif has_google_cfg:
-        lines.append("⬜ Google — /connect google")
-    if has_imap:
-        cfg = storage.load_imap_config()
-        lines.append(f"✅ Email — {cfg['email']}")
-    else:
-        lines.append("⬜ Email — /connect email")
-    if has_caldav:
-        lines.append("✅ Calendar (CalDAV) — read/write")
-    elif has_ics:
-        lines.append("✅ Calendar (ICS) — read-only  |  /connect caldav for write access")
-    else:
-        lines.append("⬜ Calendar — /connect caldav  _(or /connect calendar for read-only)_")
-
     # --- Capabilities ---
-    lines.append("\n*What I can do:*")
+    lines.append("*What I can do:*")
 
     if has_imap:
         lines.append("📧 Email — read, reply, send, delete, mark read")
