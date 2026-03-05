@@ -33,6 +33,25 @@ def validate_telegram_token(token):
     return "@" + data["result"]["username"]
 
 
+def load_existing_env():
+    """Load existing .env file into a dict if it exists."""
+    env = {}
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                line = line.strip()
+                if line and "=" in line and not line.startswith("#"):
+                    k, _, v = line.partition("=")
+                    env[k.strip()] = v.strip()
+    return env
+
+
+def prompt_keep_or_change(label, current_value, secret=False):
+    """Show current value and ask to keep or replace. Returns final value."""
+    display = ("*" * 8 + current_value[-4:]) if secret and len(current_value) > 4 else current_value
+    answer = input(f"  {label} [{display}] (Enter to keep, or type new value): ").strip()
+    return answer if answer else current_value
+
 
 def get_admin_telegram_id(token):
     print("\n  Send any message to your bot on Telegram, then press Enter here...")
@@ -57,19 +76,35 @@ def write_env(values):
 
 def main():
     print("\n=== Bot Setup ===\n")
-    env = {}
+
+    existing = load_existing_env()
+    is_update = bool(existing)
+    if is_update:
+        print("  Existing configuration found. Press Enter to keep each value, or type a new one.\n")
+
+    env = dict(existing)
 
     # Step 1: Telegram
     print("Step 1: Telegram Bot Token")
-    print("  Create a bot with @BotFather on Telegram and paste the token here.")
-    while True:
-        token = input("  Token: ").strip()
-        if not token:
-            continue
-        if check("Validating token", lambda: validate_telegram_token(token)):
-            env["TELEGRAM_TOKEN"] = token
-            break
-        print("  Please try again.")
+    if existing.get("TELEGRAM_TOKEN"):
+        token = prompt_keep_or_change("Token", existing["TELEGRAM_TOKEN"], secret=True)
+        if token != existing["TELEGRAM_TOKEN"]:
+            if not check("Validating token", lambda: validate_telegram_token(token)):
+                print("  Invalid token — keeping existing one.")
+                token = existing["TELEGRAM_TOKEN"]
+        else:
+            check("Validating token", lambda: validate_telegram_token(token))
+        env["TELEGRAM_TOKEN"] = token
+    else:
+        print("  Create a bot with @BotFather on Telegram and paste the token here.")
+        while True:
+            token = input("  Token: ").strip()
+            if not token:
+                continue
+            if check("Validating token", lambda: validate_telegram_token(token)):
+                env["TELEGRAM_TOKEN"] = token
+                break
+            print("  Please try again.")
 
     # Step 2: Claude Code authentication
     print("\nStep 2: Claude Code authentication")
@@ -80,47 +115,38 @@ def main():
     if auth_ok:
         print("  ✓ Claude Code already authenticated")
     else:
-        print("  Not authenticated. Running 'claude login'...")
-        try:
-            subprocess.run(["claude", "auth", "login"], check=True)
-            print("  ✓ Claude Code authenticated")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("  ✗ Could not authenticate automatically.")
-            print("    Install Claude Code: npm install -g @anthropic-ai/claude-code")
-            print("    Then run: claude login")
-            input("  Press Enter once authenticated to continue: ")
+        print("  Not authenticated.")
+        print("  Run the following command to log in:")
+        print("    claude auth login")
+        input("  Press Enter once authenticated to continue: ")
 
     # Step 3: Google (optional)
     print("\nStep 3: Google Integration (optional)")
     print("  Enables Gmail, Google Calendar, and Google Drive for your users.")
-    want_google = input("  Enable Google integration? [y/n]: ").strip().lower() == "y"
-    if want_google:
-        print("  Paste your Google OAuth credentials from Google Cloud Console.")
-        env["GOOGLE_CLIENT_ID"] = input("  Client ID: ").strip()
-        env["GOOGLE_CLIENT_SECRET"] = input("  Client Secret: ").strip()
+    if existing.get("GOOGLE_CLIENT_ID"):
+        keep = input("  Google integration is configured. Keep it? [Y/n]: ").strip().lower()
+        if keep == "n":
+            want_google = input("  Reconfigure Google integration? [y/n]: ").strip().lower() == "y"
+            if want_google:
+                print("  Paste your Google OAuth credentials from Google Cloud Console.")
+                env["GOOGLE_CLIENT_ID"] = input("  Client ID: ").strip()
+                env["GOOGLE_CLIENT_SECRET"] = input("  Client Secret: ").strip()
+            else:
+                env.pop("GOOGLE_CLIENT_ID", None)
+                env.pop("GOOGLE_CLIENT_SECRET", None)
+    else:
+        want_google = input("  Enable Google integration? [y/n]: ").strip().lower() == "y"
+        if want_google:
+            print("  Paste your Google OAuth credentials from Google Cloud Console.")
+            env["GOOGLE_CLIENT_ID"] = input("  Client ID: ").strip()
+            env["GOOGLE_CLIENT_SECRET"] = input("  Client Secret: ").strip()
 
     write_env(env)
 
-    # Step 4: Admin detection
-    print("\nStep 4: Admin account setup")
-    print("  Starting bot temporarily to detect your Telegram user ID...")
-    try:
-        proc = subprocess.Popen(
-            ["docker", "compose", "up", "-d", "--build"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        time.sleep(8)
-        admin_id, admin_username = get_admin_telegram_id(token)
-        print(f"  ✓ Admin detected: @{admin_username} (id: {admin_id})")
-    except Exception as e:
-        print(f"  Could not auto-detect admin: {e}")
-        admin_id_str = input("  Enter your Telegram user ID manually: ").strip()
-        try:
-            admin_id = int(admin_id_str)
-        except ValueError:
-            print("  Invalid ID. You can set it up later.")
-            admin_id = None
+    # Step 4: Admin info
+    print("\nStep 4: Admin account")
+    print("  The first user to send /start to your bot will become the admin.")
+    print("  Start the bot, then open Telegram and send /start to your bot.")
 
     print("\n✓ Setup complete!")
     print("\nStart the bot:     docker compose up -d")
