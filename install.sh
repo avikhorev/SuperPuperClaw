@@ -55,7 +55,7 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     git -C "$INSTALL_DIR" pull --quiet
 else
     echo "Cloning into $INSTALL_DIR ..."
-    git clone "$REPO_URL" "$INSTALL_DIR"
+    GIT_TERMINAL_PROMPT=0 git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
 cd "$INSTALL_DIR"
