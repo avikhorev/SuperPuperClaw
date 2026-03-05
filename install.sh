@@ -49,31 +49,10 @@ if ! docker compose version &>/dev/null 2>&1; then
     echo "  ✓ Docker Compose installed"
 fi
 
-# --- Node.js + Claude Code CLI ---
-if ! command -v npm &>/dev/null; then
-    echo "Node.js not found — installing..."
-    OS="$(uname -s)"
-    if [ "$OS" = "Darwin" ]; then
-        if command -v brew &>/dev/null; then
-            brew install node
-        else
-            echo "Error: Homebrew is required to install Node.js on macOS."
-            echo "Install Homebrew: https://brew.sh"
-            exit 1
-        fi
-    elif [ "$OS" = "Linux" ]; then
-        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-        sudo apt-get install -y nodejs
-    else
-        echo "Error: Unsupported OS. Install Node.js manually: https://nodejs.org"
-        exit 1
-    fi
-    echo "  ✓ Node.js installed"
-fi
-
+# --- Claude Code CLI ---
 if ! command -v claude &>/dev/null; then
-    echo "Claude Code CLI not found — installing..."
-    npm install -g @anthropic-ai/claude-code
+    echo "Installing Claude Code CLI..."
+    curl -fsSL https://claude.ai/install.sh | sh
     echo "  ✓ Claude Code CLI installed"
 fi
 
