@@ -51,28 +51,17 @@ fi
 
 # --- Claude Code CLI ---
 if ! command -v claude &>/dev/null; then
-    echo "Installing Claude Code CLI..."
-    if ! command -v npm &>/dev/null; then
-        OS="$(uname -s)"
-        if [ "$OS" = "Darwin" ] && command -v brew &>/dev/null; then
-            brew install node
-        elif [ "$OS" = "Linux" ]; then
-            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-        else
-            echo "Error: Please install Node.js from https://nodejs.org and re-run."
-            exit 1
-        fi
-    fi
-    if [ "$(uname -s)" = "Linux" ]; then
-        sudo npm install -g @anthropic-ai/claude-code
-    else
-        npm install -g @anthropic-ai/claude-code
-    fi
-    echo "  ✓ Claude Code CLI installed"
+    echo "Error: Claude Code CLI is not installed."
+    echo "See https://docs.anthropic.com/en/docs/claude-code/getting-started"
+    exit 1
 fi
 
-echo "  ✓ Claude Code CLI ready (auth handled inside Docker container)"
+if ! claude auth status &>/dev/null 2>&1; then
+    echo "Error: Claude Code is not logged in. Please log in and re-run this script."
+    exit 1
+fi
+
+echo "  ✓ Claude Code authenticated"
 
 # --- Clone or update ---
 if [ -d "$INSTALL_DIR/.git" ]; then
