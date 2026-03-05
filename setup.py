@@ -13,6 +13,14 @@ _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
 _SSL_CTX.verify_mode = ssl.CERT_NONE
 
+# When piped (e.g. curl | bash), stdin is the pipe not the terminal.
+# Reopen /dev/tty so interactive prompts work correctly.
+if not sys.stdin.isatty():
+    try:
+        sys.stdin = open("/dev/tty", "r")
+    except OSError:
+        pass
+
 
 def check(label, fn):
     try:
