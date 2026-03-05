@@ -62,18 +62,34 @@ def pick_user(prompt: str = "Select user") -> dict | None:
 def menu_stats():
     clear()
     print("=== Status & Stats ===\n")
+
+    # Bot process uptime
+    import sqlite3
+    from datetime import datetime, timezone, timedelta
+    try:
+        with open("/proc/1/stat") as f:
+            fields = f.read().split()
+        uptime_ticks = int(fields[21])
+        with open("/proc/uptime") as f:
+            system_uptime = float(f.read().split()[0])
+        ticks_per_sec = os.sysconf("SC_CLK_TCK")
+        proc_uptime_sec = system_uptime - uptime_ticks / ticks_per_sec
+        uptime = str(timedelta(seconds=int(proc_uptime_sec)))
+        print(f"Bot status:   ✓ Running  (uptime {uptime})")
+    except Exception:
+        print("Bot status:   ✓ Running")
+
+    # Users
     users = global_db.list_users()
     approved = sum(1 for u in users if u["status"] == "approved")
     pending  = sum(1 for u in users if u["status"] == "pending")
     banned   = sum(1 for u in users if u["status"] == "banned")
-    print(f"Total users:  {len(users)}")
+    print(f"\nTotal users:  {len(users)}")
     print(f"  Approved:   {approved}")
-    print(f"  Pending:    {pending}")
+    print(f"  Pending:    {pending}{'  ← waiting for approval' if pending else ''}")
     print(f"  Banned:     {banned}")
 
-    # Count today's messages across all user DBs
-    import sqlite3
-    from datetime import datetime, timezone
+    # Messages today
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     total_messages = 0
     users_dir = os.path.join(DATA_DIR, "users")
@@ -92,6 +108,13 @@ def menu_stats():
                     pass
 
     print(f"\nMessages today: {total_messages}")
+
+    # Last error
+    errors_log = os.path.join(DATA_DIR, "logs", "errors.log")
+    if os.path.exists(errors_log):
+        lines = open(errors_log).readlines()
+        if lines:
+            print(f"\nLast error:   {lines[-1].strip()[:120]}")
     pause()
 
 
