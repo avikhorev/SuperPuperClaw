@@ -3,6 +3,7 @@
 
 Optional args (skip prompts, still show settings):
   --token TOKEN
+  --admin-id ID
   --google-client-id ID --google-client-secret SECRET
   --no-google
 """
@@ -92,6 +93,7 @@ def write_env(values):
 def parse_args():
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("--token")
+    p.add_argument("--admin-id")
     p.add_argument("--google-client-id")
     p.add_argument("--google-client-secret")
     p.add_argument("--no-google", action="store_true")
@@ -184,6 +186,10 @@ def main():
 
     # Step 4: Admin account
     print("\nStep 4: Admin account")
+    if args.admin_id:
+        print(f"  ✓ Admin will be: id {args.admin_id}")
+        return
+
     print("  Send any message to your bot on Telegram — the first user to do so becomes admin.")
     print(f"  Bot: {validate_telegram_token(env['TELEGRAM_TOKEN'])}")
     print("  Waiting...")
