@@ -95,7 +95,7 @@ fi
 cd "$INSTALL_DIR"
 
 # --- Run interactive setup ---
-python3 setup.py
+python3 setup.py "$@"
 
 # --- Add botadmin alias ---
 ALIAS_LINE="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
