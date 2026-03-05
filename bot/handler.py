@@ -14,33 +14,58 @@ from bot.tools.memory_tool import update_memory
 
 logger = logging.getLogger(__name__)
 
-HELP_TEXT_BASE = """I'm your personal AI assistant!
+def _build_help_text(config, storage) -> str:
+    has_google_cfg = bool(config.google_client_id)
+    has_google = has_google_cfg and storage.load_oauth_tokens() is not None
+    has_imap = storage.load_imap_config() is not None
+    has_ics = storage.load_calendar_config() is not None
 
-📅 *Productivity*
-• Reminders — "remind me every Monday at 9am to..."
-• Email — type /connect email to link your inbox
-• Calendar — type /connect calendar to link your calendar
+    lines = ["*Your personal AI assistant*\n"]
 
-🔍 *Research*
-• Web search & page summaries
-• Wikipedia, arXiv, YouTube transcripts
-• News digest
+    # --- Connections ---
+    lines.append("*Connected integrations:*")
+    if has_google:
+        lines.append("✅ Google — Gmail, Calendar, Drive")
+    elif has_google_cfg:
+        lines.append("⬜ Google — /connect google")
+    if has_imap:
+        cfg = storage.load_imap_config()
+        lines.append(f"✅ Email — {cfg['email']}")
+    else:
+        lines.append("⬜ Email — /connect email")
+    if has_ics:
+        lines.append("✅ Calendar — ICS connected")
+    else:
+        lines.append("⬜ Calendar — /connect calendar")
 
-🌤 *Utilities*
-• Weather, currency conversion
-• QR codes, URL shortener
-• PDF summaries — send any PDF
+    # --- Capabilities ---
+    lines.append("\n*What I can do:*")
 
-🎙 *Voice*
-• Send a voice note — I'll transcribe and respond
+    if has_imap:
+        lines.append("📧 Email — read, reply, send, delete, mark read")
+    if has_google:
+        lines.append("📧 Gmail — read, send emails")
+        lines.append("📅 Google Calendar — list, create, update, delete events")
+    if has_ics:
+        lines.append("📅 Calendar — list upcoming events")
+    lines.append("🔍 Web search, page summaries, Wikipedia, arXiv, YouTube")
+    lines.append("📰 News digest")
+    lines.append("🌤 Weather & currency conversion")
+    lines.append("🔗 QR codes, URL shortener")
+    lines.append("📄 PDF summaries — just send a PDF")
+    lines.append("🎙 Voice messages — I'll transcribe and respond")
 
-Just talk to me naturally — no need for commands!
+    # --- Commands ---
+    lines.append("\n*Commands:*")
+    lines.append("/help — this message")
+    lines.append("/status — show connection status")
+    lines.append("/connect email — link email (IMAP/SMTP)")
+    lines.append("/connect calendar — link calendar (ICS URL)")
+    if has_google_cfg:
+        lines.append("/connect google — link Google account")
 
-Commands: /help /connect /status"""
-
-HELP_TEXT_GOOGLE = """
-📅 *Google*
-• Calendar, Gmail, Drive — type /connect google to link your account"""
+    lines.append("\nJust talk to me naturally — no commands needed!")
+    return "\n".join(lines)
 
 
 class BotHandler:
@@ -92,9 +117,8 @@ class BotHandler:
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
             return
-        text = HELP_TEXT_BASE
-        if self.config.google_client_id:
-            text = HELP_TEXT_GOOGLE + text
+        storage = self._get_storage(uid)
+        text = _build_help_text(self.config, storage)
         await update.message.reply_text(text, parse_mode="Markdown")
 
     async def approve_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
