@@ -99,7 +99,8 @@ python3 setup.py "$@"
 
 # --- Add botadmin alias ---
 ALIAS_LINE="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
-alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
+alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'
+alias botstatus='$DC -f $INSTALL_DIR/docker-compose.yml ps && echo \"\" && $DC -f $INSTALL_DIR/docker-compose.yml logs --tail=20 bot'"
 
 for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rc_file" ] && ! grep -q "botadmin" "$rc_file"; then
