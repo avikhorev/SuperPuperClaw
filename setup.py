@@ -204,34 +204,31 @@ def main():
     else:
         print("  Send any message to your bot on Telegram to register as admin.")
         print(f"  Bot: @{validate_telegram_token(env['TELEGRAM_TOKEN']).lstrip('@')}")
-        print("  Waiting... (Ctrl+C to skip)")
+        print("  Waiting...")
         offset = None
-        try:
-            while True:
-                params = "?timeout=10&limit=1"
-                if offset is not None:
-                    params += f"&offset={offset}"
-                url = f"https://api.telegram.org/bot{env['TELEGRAM_TOKEN']}/getUpdates{params}"
-                try:
-                    with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as r:
-                        data = json.loads(r.read())
-                    updates = data.get("result", [])
-                    if updates:
-                        update = updates[-1]
-                        offset = update["update_id"] + 1
-                        msg = update.get("message") or update.get("edited_message")
-                        if msg:
-                            user = msg["from"]
-                            admin_id = user["id"]
-                            username = user.get("username", "")
-                            env["ADMIN_TELEGRAM_ID"] = str(admin_id)
-                            write_env(env)
-                            print(f"  ✓ Admin registered: @{username} (id: {admin_id})")
-                            break
-                except Exception:
-                    time.sleep(2)
-        except KeyboardInterrupt:
-            print("\n  Skipped — first user to send /start will become admin.")
+        while True:
+            params = "?timeout=10&limit=1"
+            if offset is not None:
+                params += f"&offset={offset}"
+            url = f"https://api.telegram.org/bot{env['TELEGRAM_TOKEN']}/getUpdates{params}"
+            try:
+                with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as r:
+                    data = json.loads(r.read())
+                updates = data.get("result", [])
+                if updates:
+                    update = updates[-1]
+                    offset = update["update_id"] + 1
+                    msg = update.get("message") or update.get("edited_message")
+                    if msg:
+                        user = msg["from"]
+                        admin_id = user["id"]
+                        username = user.get("username", "")
+                        env["ADMIN_TELEGRAM_ID"] = str(admin_id)
+                        write_env(env)
+                        print(f"  ✓ Admin registered: @{username} (id: {admin_id})")
+                        break
+            except Exception:
+                time.sleep(2)
 
     print("\n✓ Setup complete!")
     print("\nStart the bot:     docker compose up -d")
