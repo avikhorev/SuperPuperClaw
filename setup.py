@@ -2,11 +2,16 @@
 """Interactive setup script — run once after cloning the repo."""
 import json
 import os
+import ssl
 import subprocess
 import sys
 import time
 import urllib.request
 import urllib.error
+
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 def check(label, fn):
@@ -22,7 +27,7 @@ def check(label, fn):
 
 def validate_telegram_token(token):
     url = f"https://api.telegram.org/bot{token}/getMe"
-    with urllib.request.urlopen(url, timeout=8) as r:
+    with urllib.request.urlopen(url, timeout=8, context=_SSL_CTX) as r:
         data = json.loads(r.read())
     assert data["ok"], "Invalid token"
     return "@" + data["result"]["username"]
@@ -33,7 +38,7 @@ def get_admin_telegram_id(token):
     print("\n  Send any message to your bot on Telegram, then press Enter here...")
     input("  Press Enter when done: ")
     url = f"https://api.telegram.org/bot{token}/getUpdates?limit=1&offset=-1"
-    with urllib.request.urlopen(url, timeout=8) as r:
+    with urllib.request.urlopen(url, timeout=8, context=_SSL_CTX) as r:
         data = json.loads(r.read())
     updates = data.get("result", [])
     if not updates:
