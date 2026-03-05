@@ -72,20 +72,7 @@ if ! command -v claude &>/dev/null; then
     echo "  ✓ Claude Code CLI installed"
 fi
 
-if ! claude auth status &>/dev/null 2>&1; then
-    echo ""
-    echo "  Claude Code authentication required."
-    echo "  Run the following command and follow the instructions:"
-    echo ""
-    echo "    claude auth login"
-    echo ""
-    echo "  Once authenticated, re-run this installer:"
-    echo ""
-    echo "    curl -fsSL https://raw.githubusercontent.com/avikhorev/SuperPuperClaw/main/install.sh | bash"
-    echo ""
-    exit 0
-fi
-echo "  ✓ Claude Code authenticated"
+echo "  ✓ Claude Code CLI ready (auth handled inside Docker container)"
 
 # --- Clone or update ---
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -110,6 +97,14 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
         echo "  ✓ Added 'botadmin' alias to $rc_file"
     fi
 done
+
+# --- Authenticate Claude Code inside container ---
+echo "Starting bot container for Claude Code authentication..."
+docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+echo ""
+echo "Now authenticate Claude Code (opens a browser URL — paste the code when shown):"
+docker compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login < /dev/tty
+docker compose -f "$INSTALL_DIR/docker-compose.yml" restart
 
 echo ""
 echo "Done!"

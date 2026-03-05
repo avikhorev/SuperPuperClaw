@@ -5,6 +5,9 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
-      - ${HOME}/.claude:/home/botuser/.claude:ro
+      - claude_auth:/home/botuser/.claude
     environment:
       - DATA_DIR=/data
+
+volumes:
+  claude_auth:
