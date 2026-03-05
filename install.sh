@@ -73,9 +73,17 @@ if ! command -v claude &>/dev/null; then
 fi
 
 if ! claude auth status &>/dev/null 2>&1; then
-    echo "Claude Code authentication required."
-    echo "A browser window will open — sign in with your Claude account."
-    claude auth login < /dev/tty
+    echo ""
+    echo "  Claude Code authentication required."
+    echo "  Run the following command and follow the instructions:"
+    echo ""
+    echo "    claude auth login"
+    echo ""
+    echo "  Once authenticated, re-run this installer:"
+    echo ""
+    echo "    curl -fsSL https://raw.githubusercontent.com/avikhorev/SuperPuperClaw/main/install.sh | bash"
+    echo ""
+    exit 0
 fi
 echo "  ✓ Claude Code authenticated"
 
