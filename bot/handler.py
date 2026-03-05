@@ -224,10 +224,23 @@ class BotHandler:
             except Exception as e:
                 logger.exception("Agent error (voice) for user %s", uid)
                 reply = "Something went wrong processing your voice message."
+                await self._notify_admin_error(ctx, uid, e, "voice")
             storage.db.add_message(role="assistant", content=reply)
             await ctx.bot.send_message(chat_id=uid, text=reply)
 
         asyncio.create_task(process())
+
+    async def _notify_admin_error(self, ctx: ContextTypes.DEFAULT_TYPE, uid: int, error: Exception, context: str = ""):
+        admin = self.global_db.get_admin()
+        if admin:
+            try:
+                msg = f"Error for user {uid}"
+                if context:
+                    msg += f" ({context})"
+                msg += f": {error}"
+                await ctx.bot.send_message(chat_id=admin["telegram_id"], text=msg)
+            except Exception:
+                pass
 
     def _transcribe(self, ogg_bytes: bytes) -> str:
         import tempfile
@@ -263,7 +276,9 @@ class BotHandler:
             try:
                 reply = await runner.run(f"Summarize this document:\n\n{text}")
             except Exception as e:
+                logger.exception("Agent error (PDF) for user %s", uid)
                 reply = "Could not summarize the PDF."
+                await self._notify_admin_error(ctx, uid, e, "PDF")
             await ctx.bot.send_message(chat_id=uid, text=reply)
 
         asyncio.create_task(process())
