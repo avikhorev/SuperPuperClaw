@@ -49,6 +49,26 @@ if ! docker compose version &>/dev/null 2>&1; then
     echo "  ✓ Docker Compose installed"
 fi
 
+# --- Claude Code CLI ---
+if ! command -v claude &>/dev/null; then
+    echo "Claude Code CLI not found — installing..."
+    if command -v npm &>/dev/null; then
+        npm install -g @anthropic-ai/claude-code
+        echo "  ✓ Claude Code CLI installed"
+    else
+        echo "Error: npm is required to install Claude Code CLI."
+        echo "Install Node.js from https://nodejs.org and re-run this script."
+        exit 1
+    fi
+fi
+
+if ! claude auth status &>/dev/null 2>&1; then
+    echo "Claude Code authentication required."
+    echo "A browser window will open — sign in with your Claude account."
+    claude login < /dev/tty
+fi
+echo "  ✓ Claude Code authenticated"
+
 # --- Clone or update ---
 if [ -d "$INSTALL_DIR/.git" ]; then
     echo "Existing installation found at $INSTALL_DIR — updating..."

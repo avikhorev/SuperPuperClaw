@@ -59,11 +59,7 @@ class BotHandler:
         memory_fn.__doc__ = update_memory.__doc__
         memory_fn._needs_storage = False  # already bound
         tools.append(memory_fn)
-        return AgentRunner(
-            anthropic_api_key=self.config.anthropic_api_key,
-            storage=storage,
-            tools=tools,
-        )
+        return AgentRunner(storage=storage, tools=tools)
 
     async def start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id

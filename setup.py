@@ -28,19 +28,6 @@ def validate_telegram_token(token):
     return "@" + data["result"]["username"]
 
 
-def validate_anthropic_key(key):
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/models",
-        headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8):
-            return "valid"
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise ValueError("Invalid API key")
-        return "valid"  # other HTTP errors may still be valid keys
-
 
 def get_admin_telegram_id(token):
     print("\n  Send any message to your bot on Telegram, then press Enter here...")
@@ -79,17 +66,24 @@ def main():
             break
         print("  Please try again.")
 
-    # Step 2: Anthropic
-    print("\nStep 2: Anthropic API Key")
-    print("  Get your key from https://console.anthropic.com/")
-    while True:
-        key = input("  API Key: ").strip()
-        if not key:
-            continue
-        if check("Validating key", lambda: validate_anthropic_key(key)):
-            env["ANTHROPIC_API_KEY"] = key
-            break
-        print("  Please try again.")
+    # Step 2: Claude Code authentication
+    print("\nStep 2: Claude Code authentication")
+    print("  The bot uses Claude via Claude Code CLI (no separate API key needed).")
+    auth_ok = subprocess.run(
+        ["claude", "auth", "status"], capture_output=True
+    ).returncode == 0
+    if auth_ok:
+        print("  ✓ Claude Code already authenticated")
+    else:
+        print("  Not authenticated. Running 'claude login'...")
+        try:
+            subprocess.run(["claude", "login"], check=True)
+            print("  ✓ Claude Code authenticated")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("  ✗ Could not authenticate automatically.")
+            print("    Install Claude Code: npm install -g @anthropic-ai/claude-code")
+            print("    Then run: claude login")
+            input("  Press Enter once authenticated to continue: ")
 
     # Step 3: Google (optional)
     print("\nStep 3: Google Integration (optional)")

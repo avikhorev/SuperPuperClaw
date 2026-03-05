@@ -1,7 +1,16 @@
 import asyncio
+import inspect
 from datetime import datetime, timezone
-from functools import partial
-import anthropic
+
+from claude_agent_sdk import (
+    ClaudeSDKClient,
+    ClaudeAgentOptions,
+    AssistantMessage,
+    TextBlock,
+    ResultMessage,
+    create_sdk_mcp_server,
+    tool as sdk_tool,
+)
 from bot.storage import UserStorage
 
 SYSTEM_TEMPLATE = """You are a helpful personal AI assistant on Telegram.
@@ -15,103 +24,95 @@ Be concise. Use bullet points when listing things. Respond in the same language 
 
 You have access to tools — use them when they help answer the user's request.
 To remember something important about the user long-term, call the update_memory tool with the complete updated memory content.
-"""
+{history}"""
 
 
-def build_system_prompt(storage: UserStorage) -> str:
+def _build_tool_schema(fn) -> dict:
+    """Build a {param: PythonType} schema dict from a function's signature."""
+    sig = inspect.signature(fn)
+    schema = {}
+    for pname, param in sig.parameters.items():
+        if pname == "storage":
+            continue
+        if param.annotation in (int, float):
+            schema[pname] = float
+        else:
+            schema[pname] = str
+    return schema
+
+
+def _wrap_tools_for_mcp(tools: list, storage: UserStorage) -> list:
+    """Wrap existing tool functions as MCP-compatible tools for the Agent SDK."""
+    mcp_tools = []
+    for fn in tools:
+        schema = _build_tool_schema(fn)
+        needs_storage = getattr(fn, "_needs_storage", False)
+
+        def make_wrapper(tool_fn, _needs_storage, _storage):
+            async def wrapper(args):
+                kwargs = dict(args)
+                if _needs_storage:
+                    kwargs["storage"] = _storage
+                loop = asyncio.get_running_loop()
+                try:
+                    result = await loop.run_in_executor(None, lambda: tool_fn(**kwargs))
+                    return {"content": [{"type": "text", "text": str(result)}]}
+                except Exception as e:
+                    return {"content": [{"type": "text", "text": f"Tool error: {e}"}]}
+            return wrapper
+
+        wrapper_fn = make_wrapper(fn, needs_storage, storage)
+        decorated = sdk_tool(fn.__name__, fn.__doc__ or fn.__name__, schema)(wrapper_fn)
+        mcp_tools.append(decorated)
+    return mcp_tools
+
+
+def _format_history(history: list) -> str:
+    if not history:
+        return ""
+    lines = [f"{m['role'].capitalize()}: {m['content']}" for m in history]
+    return "\n\nRecent conversation:\n" + "\n".join(lines)
+
+
+def build_system_prompt(storage: UserStorage, history: list) -> str:
     memory = storage.read_memory() or "Nothing known yet."
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    return SYSTEM_TEMPLATE.format(datetime=now, memory=memory)
+    return SYSTEM_TEMPLATE.format(
+        datetime=now,
+        memory=memory,
+        history=_format_history(history),
+    )
 
 
 class AgentRunner:
-    def __init__(self, anthropic_api_key: str, storage: UserStorage, tools: list):
-        self._api_key = anthropic_api_key
-        self._client = None
+    def __init__(self, storage: UserStorage, tools: list):
         self.storage = storage
         self.tools = tools
-        self._tool_map = {fn.__name__: fn for fn in tools}
-
-    @property
-    def client(self):
-        if self._client is None:
-            self._client = anthropic.Anthropic(api_key=self._api_key)
-        return self._client
 
     async def run(self, user_message: str) -> str:
         history = self.storage.db.get_recent_messages(20)
-        messages = [{"role": m["role"], "content": m["content"]} for m in history]
-        messages.append({"role": "user", "content": user_message})
+        system = build_system_prompt(self.storage, history)
 
-        system = build_system_prompt(self.storage)
-        anthropic_tools = self._build_anthropic_tools()
+        mcp_tools = _wrap_tools_for_mcp(self.tools, self.storage)
+        server = create_sdk_mcp_server("bot-tools", tools=mcp_tools)
 
-        loop = asyncio.get_running_loop()
-        kwargs = dict(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=system,
-            messages=messages,
-        )
-        if anthropic_tools:
-            kwargs["tools"] = anthropic_tools
-
-        response = await loop.run_in_executor(
-            None, partial(self.client.messages.create, **kwargs)
+        options = ClaudeAgentOptions(
+            system_prompt=system,
+            allowed_tools=[],
+            mcp_servers={"tools": server},
+            permission_mode="dontAsk",
+            max_turns=10,
         )
 
-        while response.stop_reason == "tool_use":
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = self._call_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": str(result),
-                    })
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
-            response = await loop.run_in_executor(
-                None, partial(self.client.messages.create, **kwargs | {"messages": messages})
-            )
+        result_text = ""
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(user_message)
+            async for message in client.receive_response():
+                if isinstance(message, ResultMessage):
+                    result_text = message.result
+                elif isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock) and not result_text:
+                            result_text = block.text
 
-        return next((b.text for b in response.content if hasattr(b, "text")), "")
-
-    def _call_tool(self, name: str, inputs: dict) -> str:
-        fn = self._tool_map.get(name)
-        if not fn:
-            return f"Unknown tool: {name}"
-        if getattr(fn, "_needs_storage", False):
-            inputs = {**inputs, "storage": self.storage}
-        try:
-            return fn(**inputs)
-        except Exception as e:
-            return f"Tool error: {e}"
-
-    def _build_anthropic_tools(self) -> list:
-        import inspect
-        tools = []
-        for fn in self.tools:
-            sig = inspect.signature(fn)
-            props = {}
-            required = []
-            for pname, param in sig.parameters.items():
-                if pname == "storage":
-                    continue
-                ptype = "string"
-                if param.annotation in (int, float):
-                    ptype = "number"
-                props[pname] = {"type": ptype, "description": pname}
-                if param.default is inspect.Parameter.empty:
-                    required.append(pname)
-            tools.append({
-                "name": fn.__name__,
-                "description": fn.__doc__ or fn.__name__,
-                "input_schema": {
-                    "type": "object",
-                    "properties": props,
-                    "required": required,
-                }
-            })
-        return tools
+        return result_text
