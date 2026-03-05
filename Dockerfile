@@ -9,4 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
+USER botuser
+
 CMD ["python", "-m", "bot.main"]
