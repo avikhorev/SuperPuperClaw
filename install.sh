@@ -107,7 +107,7 @@ add_alias() {
 }
 
 ALIAS_BOTADMIN="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'"
-ALIAS_BOTAUTH="alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
+ALIAS_BOTAUTH="alias botauth='claude auth login && VOLUME_NAME=\$(basename $INSTALL_DIR)_claude_auth && docker run --rm -v \"\${VOLUME_NAME}:/target\" -v \"\$HOME/.claude:/source:ro\" alpine sh -c \"cp -r /source/. /target/ && chown -R 1000:1000 /target\" && $DC -f $INSTALL_DIR/docker-compose.yml restart bot && echo \"  ✓ Claude credentials updated and bot restarted\"'"
 ALIAS_BOTSTATUS="alias botstatus='$DC -f $INSTALL_DIR/docker-compose.yml ps && echo && $DC -f $INSTALL_DIR/docker-compose.yml logs --tail=20 bot'"
 
 for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
