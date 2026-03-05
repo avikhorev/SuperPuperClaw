@@ -18,22 +18,24 @@ for cmd in docker git python3; do
 done
 
 # --- Docker permissions ---
-DOCKER="docker"
+# Ensure docker group exists and service is running
+sudo getent group docker &>/dev/null || sudo groupadd docker
+sudo systemctl start docker 2>/dev/null || true
+sudo usermod -aG docker "$USER" 2>/dev/null || true
+
+# Use sudo if needed
 if ! docker info &>/dev/null 2>&1; then
-    # Ensure docker group exists and service is running
-    sudo getent group docker &>/dev/null || sudo groupadd docker
-    sudo systemctl start docker 2>/dev/null || true
-    if sudo docker info &>/dev/null 2>&1; then
-        DOCKER="sudo docker"
-        sudo usermod -aG docker "$USER" 2>/dev/null || true
-        echo "  ✓ Using sudo for Docker (re-login to use without sudo)"
-    else
+    if ! sudo docker info &>/dev/null 2>&1; then
         echo "Error: Cannot connect to Docker. Make sure Docker is installed and running."
         exit 1
     fi
+    DC="sudo docker compose"
+else
+    DC="docker compose"
 fi
 
-if ! docker compose version &>/dev/null 2>&1; then
+# --- Docker Compose ---
+if ! $DC version &>/dev/null 2>&1; then
     echo "Docker Compose plugin not found — installing..."
     OS="$(uname -s)"
     if [ "$OS" = "Darwin" ]; then
@@ -57,7 +59,7 @@ if ! docker compose version &>/dev/null 2>&1; then
         echo "See https://docs.docker.com/compose/install/"
         exit 1
     fi
-    if ! docker compose version &>/dev/null 2>&1; then
+    if ! $DC version &>/dev/null 2>&1; then
         echo "Error: Docker Compose installation failed. Please install manually:"
         echo "See https://docs.docker.com/compose/install/"
         exit 1
@@ -94,8 +96,8 @@ cd "$INSTALL_DIR"
 python3 setup.py < /dev/tty
 
 # --- Add botadmin alias ---
-ALIAS_LINE="alias botadmin='docker compose -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
-alias botauth='docker compose -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
+ALIAS_LINE="alias botadmin='$DC -f $INSTALL_DIR/docker-compose.yml exec bot python admin.py'
+alias botauth='$DC -f $INSTALL_DIR/docker-compose.yml exec -it bot claude auth login'"
 
 for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rc_file" ] && ! grep -q "botadmin" "$rc_file"; then
@@ -104,13 +106,9 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
     fi
 done
 
-# --- Authenticate Claude Code inside container ---
+# --- Start bot ---
 echo "Starting bot container..."
-$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" up -d
-echo ""
-echo "Now authenticate Claude Code with your Claude account:"
-$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login
-$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" restart
+$DC -f "$INSTALL_DIR/docker-compose.yml" up -d --build
 
 echo ""
 echo "Done!"
