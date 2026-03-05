@@ -16,12 +16,6 @@ def main():
     config = Config()
     setup_logging(config.data_dir)
     global_db = GlobalDB(os.path.join(config.data_dir, "global.db"))
-    admin_id_env = os.getenv("ADMIN_TELEGRAM_ID")
-    if admin_id_env:
-        try:
-            global_db.seed_admin(int(admin_id_env))
-        except (ValueError, Exception):
-            pass
     handler = BotHandler(config=config, global_db=global_db)
 
     app = Application.builder().token(config.telegram_token).build()

@@ -3,7 +3,6 @@
 
 Optional args (skip prompts, still show settings):
   --token TOKEN
-  --admin-id ID
   --google-client-id ID --google-client-secret SECRET
   --no-google
 """
@@ -93,7 +92,6 @@ def write_env(values):
 def parse_args():
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("--token")
-    p.add_argument("--admin-id")
     p.add_argument("--google-client-id")
     p.add_argument("--google-client-secret")
     p.add_argument("--no-google", action="store_true")
@@ -184,51 +182,32 @@ def main():
 
     write_env(env)
 
-    # Step 4: Admin Telegram ID
+    # Step 4: Admin account
     print("\nStep 4: Admin account")
-    if args.admin_id:
+    print("  Send any message to your bot on Telegram — the first user to do so becomes admin.")
+    print(f"  Bot: {validate_telegram_token(env['TELEGRAM_TOKEN'])}")
+    print("  Waiting...")
+    offset = None
+    while True:
+        params = "?timeout=10&limit=1"
+        if offset is not None:
+            params += f"&offset={offset}"
+        url = f"https://api.telegram.org/bot{env['TELEGRAM_TOKEN']}/getUpdates{params}"
         try:
-            env["ADMIN_TELEGRAM_ID"] = str(int(args.admin_id))
-            write_env(env)
-            print(f"  ✓ Admin ID: {env['ADMIN_TELEGRAM_ID']}")
-        except ValueError:
-            print(f"  Invalid --admin-id value: {args.admin_id}")
-    elif existing.get("ADMIN_TELEGRAM_ID"):
-        admin_id_str = prompt_keep_or_change("Admin Telegram ID", existing["ADMIN_TELEGRAM_ID"])
-        try:
-            env["ADMIN_TELEGRAM_ID"] = str(int(admin_id_str))
-            write_env(env)
-            print(f"  ✓ Admin ID: {env['ADMIN_TELEGRAM_ID']}")
-        except ValueError:
-            env["ADMIN_TELEGRAM_ID"] = existing["ADMIN_TELEGRAM_ID"]
-    else:
-        print("  Send any message to your bot on Telegram to register as admin.")
-        print(f"  Bot: @{validate_telegram_token(env['TELEGRAM_TOKEN']).lstrip('@')}")
-        print("  Waiting...")
-        offset = None
-        while True:
-            params = "?timeout=10&limit=1"
-            if offset is not None:
-                params += f"&offset={offset}"
-            url = f"https://api.telegram.org/bot{env['TELEGRAM_TOKEN']}/getUpdates{params}"
-            try:
-                with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as r:
-                    data = json.loads(r.read())
-                updates = data.get("result", [])
-                if updates:
-                    update = updates[-1]
-                    offset = update["update_id"] + 1
-                    msg = update.get("message") or update.get("edited_message")
-                    if msg:
-                        user = msg["from"]
-                        admin_id = user["id"]
-                        username = user.get("username", "")
-                        env["ADMIN_TELEGRAM_ID"] = str(admin_id)
-                        write_env(env)
-                        print(f"  ✓ Admin registered: @{username} (id: {admin_id})")
-                        break
-            except Exception:
-                time.sleep(2)
+            with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as r:
+                data = json.loads(r.read())
+            updates = data.get("result", [])
+            if updates:
+                update = updates[-1]
+                offset = update["update_id"] + 1
+                msg = update.get("message") or update.get("edited_message")
+                if msg:
+                    user = msg["from"]
+                    username = user.get("username", "")
+                    print(f"  ✓ Admin will be: @{username} (id: {user['id']})")
+                    break
+        except Exception:
+            time.sleep(2)
 
     print("\n✓ Setup complete!")
     print("\nStart the bot:     docker compose up -d")
