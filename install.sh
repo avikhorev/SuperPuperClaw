@@ -50,10 +50,11 @@ if ! $DC version &>/dev/null 2>&1; then
         fi
     elif [ "$OS" = "Linux" ]; then
         COMPOSE_VERSION="$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | cut -d'"' -f4)"
-        mkdir -p ~/.docker/cli-plugins
-        curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
-            -o ~/.docker/cli-plugins/docker-compose
-        chmod +x ~/.docker/cli-plugins/docker-compose
+        COMPOSE_DEST="/usr/local/lib/docker/cli-plugins/docker-compose"
+        sudo mkdir -p /usr/local/lib/docker/cli-plugins
+        sudo curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+            -o "$COMPOSE_DEST"
+        sudo chmod +x "$COMPOSE_DEST"
     else
         echo "Error: Unsupported OS '$OS'. Install Docker Compose manually:"
         echo "See https://docs.docker.com/compose/install/"
