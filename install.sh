@@ -20,12 +20,15 @@ done
 # --- Docker permissions ---
 DOCKER="docker"
 if ! docker info &>/dev/null 2>&1; then
+    # Ensure docker group exists and service is running
+    sudo getent group docker &>/dev/null || sudo groupadd docker
+    sudo systemctl start docker 2>/dev/null || true
     if sudo docker info &>/dev/null 2>&1; then
         DOCKER="sudo docker"
         sudo usermod -aG docker "$USER" 2>/dev/null || true
         echo "  ✓ Using sudo for Docker (re-login to use without sudo)"
     else
-        echo "Error: Cannot connect to Docker. Make sure Docker is running."
+        echo "Error: Cannot connect to Docker. Make sure Docker is installed and running."
         exit 1
     fi
 fi
