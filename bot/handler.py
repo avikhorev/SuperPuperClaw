@@ -411,8 +411,21 @@ class BotHandler:
         text = update.message.text or ""
         storage = self._get_storage(uid)
         storage.db.add_message(role="user", content=text)
-        await ctx.bot.send_chat_action(chat_id=uid, action="typing")
         runner = self._get_runner(storage)
+
+        async def keep_typing(stop_event: asyncio.Event):
+            while not stop_event.is_set():
+                try:
+                    await ctx.bot.send_chat_action(chat_id=uid, action="typing")
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(stop_event.wait(), timeout=4)
+                except asyncio.TimeoutError:
+                    pass
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(keep_typing(stop_typing))
 
         try:
             reply = await runner.run(text)
@@ -428,6 +441,9 @@ class BotHandler:
                     )
                 except Exception:
                     pass
+        finally:
+            stop_typing.set()
+            typing_task.cancel()
 
         storage.db.add_message(role="assistant", content=reply)
         await update.message.reply_text(reply)
