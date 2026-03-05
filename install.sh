@@ -52,7 +52,23 @@ fi
 # --- Claude Code CLI ---
 if ! command -v claude &>/dev/null; then
     echo "Installing Claude Code CLI..."
-    curl -fsSL https://claude.ai/install.sh | sh
+    if ! command -v npm &>/dev/null; then
+        OS="$(uname -s)"
+        if [ "$OS" = "Darwin" ] && command -v brew &>/dev/null; then
+            brew install node
+        elif [ "$OS" = "Linux" ]; then
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+        else
+            echo "Error: Please install Node.js from https://nodejs.org and re-run."
+            exit 1
+        fi
+    fi
+    if [ "$(uname -s)" = "Linux" ]; then
+        sudo npm install -g @anthropic-ai/claude-code
+    else
+        npm install -g @anthropic-ai/claude-code
+    fi
     echo "  ✓ Claude Code CLI installed"
 fi
 
