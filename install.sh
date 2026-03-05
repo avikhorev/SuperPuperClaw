@@ -77,7 +77,7 @@ if ! command -v claude &>/dev/null; then
 fi
 
 if ! claude auth status &>/dev/null 2>&1; then
-    echo "Error: Claude Code is not logged in. Please login via 'claude setup-token' and re-run this script."
+    echo "Error: Claude Code is not logged in. Please run Claude Code, login and re-run this script."
     exit 1
 fi
 
