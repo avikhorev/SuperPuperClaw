@@ -18,12 +18,16 @@ for cmd in docker git python3; do
 done
 
 # --- Docker permissions ---
+DOCKER="docker"
 if ! docker info &>/dev/null 2>&1; then
-    echo "Adding current user to docker group..."
-    sudo usermod -aG docker "$USER"
-    echo "  ✓ Added $USER to docker group"
-    echo "  Applying group change for this session..."
-    exec sg docker "$0" "$@"
+    if sudo docker info &>/dev/null 2>&1; then
+        DOCKER="sudo docker"
+        sudo usermod -aG docker "$USER" 2>/dev/null || true
+        echo "  ✓ Using sudo for Docker (re-login to use without sudo)"
+    else
+        echo "Error: Cannot connect to Docker. Make sure Docker is running."
+        exit 1
+    fi
 fi
 
 if ! docker compose version &>/dev/null 2>&1; then
@@ -99,11 +103,11 @@ done
 
 # --- Authenticate Claude Code inside container ---
 echo "Starting bot container..."
-docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" up -d
 echo ""
 echo "Now authenticate Claude Code with your Claude account:"
-docker compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login
-docker compose -f "$INSTALL_DIR/docker-compose.yml" restart
+$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login
+$DOCKER compose -f "$INSTALL_DIR/docker-compose.yml" restart
 
 echo ""
 echo "Done!"
