@@ -70,12 +70,13 @@ fi
 # --- Claude Code CLI ---
 if ! command -v claude &>/dev/null; then
     echo "Error: Claude Code CLI is not installed."
+    echo "Please install it via 'curl -fsSL https://claude.ai/install.sh | bash' and re-run this script."
     echo "See https://docs.anthropic.com/en/docs/claude-code/getting-started"
     exit 1
 fi
 
 if ! claude auth status &>/dev/null 2>&1; then
-    echo "Error: Claude Code is not logged in. Please log in and re-run this script."
+    echo "Error: Claude Code is not logged in. Please login via 'claude setup-token' and re-run this script."
     exit 1
 fi
 
