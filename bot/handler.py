@@ -19,6 +19,7 @@ def _build_help_text(config, storage) -> str:
     has_google = has_google_cfg and storage.load_oauth_tokens() is not None
     has_imap = storage.load_imap_config() is not None
     has_ics = storage.load_calendar_config() is not None
+    has_caldav = storage.load_caldav_config() is not None
 
     lines = ["*Your personal AI assistant*\n"]
 
@@ -33,10 +34,12 @@ def _build_help_text(config, storage) -> str:
         lines.append(f"✅ Email — {cfg['email']}")
     else:
         lines.append("⬜ Email — /connect email")
-    if has_ics:
-        lines.append("✅ Calendar — ICS connected")
+    if has_caldav:
+        lines.append("✅ Calendar (CalDAV) — read/write")
+    elif has_ics:
+        lines.append("✅ Calendar (ICS) — read-only  |  /connect caldav for write access")
     else:
-        lines.append("⬜ Calendar — /connect calendar")
+        lines.append("⬜ Calendar — /connect caldav  _(or /connect calendar for read-only)_")
 
     # --- Capabilities ---
     lines.append("\n*What I can do:*")
@@ -46,8 +49,10 @@ def _build_help_text(config, storage) -> str:
     if has_google:
         lines.append("📧 Gmail — read, send emails")
         lines.append("📅 Google Calendar — list, create, update, delete events")
-    if has_ics:
-        lines.append("📅 Calendar — list upcoming events")
+    if has_caldav:
+        lines.append("📅 Calendar — list, create, update, delete events")
+    elif has_ics:
+        lines.append("📅 Calendar — list upcoming events (read-only)")
     lines.append("🔍 Web search, page summaries, Wikipedia, arXiv, YouTube")
     lines.append("📰 News digest")
     lines.append("🌤 Weather & currency conversion")
@@ -58,9 +63,9 @@ def _build_help_text(config, storage) -> str:
     # --- Commands ---
     lines.append("\n*Commands:*")
     lines.append("/help — this message")
-    lines.append("/status — show connection status")
     lines.append("/connect email — link email (IMAP/SMTP)")
-    lines.append("/connect calendar — link calendar (ICS URL)")
+    lines.append("/connect caldav — link calendar with write access (iCloud, Fastmail, Nextcloud…)")
+    lines.append("/connect calendar — link calendar read-only (ICS URL)")
     if has_google_cfg:
         lines.append("/connect google — link Google account")
 
@@ -205,6 +210,18 @@ class BotHandler:
             )
             ctx.user_data["connect_step"] = "email_address"
 
+        elif subcommand == "caldav":
+            await update.message.reply_text(
+                "Let's connect your calendar with full read/write access via CalDAV.\n\n"
+                "This works with iCloud, Fastmail, Nextcloud, Radicale, and others.\n\n"
+                "Paste your CalDAV server URL:\n"
+                "• iCloud: `https://caldav.icloud.com`\n"
+                "• Fastmail: `https://caldav.fastmail.com`\n"
+                "• Nextcloud: `https://your-server/remote.php/dav`",
+                parse_mode="Markdown"
+            )
+            ctx.user_data["connect_step"] = "caldav_url"
+
         elif subcommand == "calendar":
             await update.message.reply_text(
                 "Let's connect your calendar. Which provider do you use?\n\n"
@@ -218,9 +235,10 @@ class BotHandler:
         else:
             lines = ["What would you like to connect?\n"]
             if self.config.google_client_id:
-                lines.append("/connect google — Gmail, Calendar, Drive")
+                lines.append("/connect google — Gmail, Calendar, Drive (read+write)")
             lines.append("/connect email — Email (any provider)")
-            lines.append("/connect calendar — Calendar (any provider)")
+            lines.append("/connect caldav — Calendar with write access (iCloud, Fastmail, Nextcloud…)")
+            lines.append("/connect calendar — Calendar read-only (any ICS URL)")
             await update.message.reply_text("\n".join(lines))
 
     async def _handle_connect_flow(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -396,6 +414,63 @@ class BotHandler:
             storage.save_calendar_config({"ics_url": url})
             ctx.user_data.pop("connect_step", None)
             await update.message.reply_text("✅ Calendar connected (read-only)")
+            return True
+
+        # ── CalDAV flow ───────────────────────────────────────────────────────
+        if step == "caldav_url":
+            if not text.startswith("http"):
+                await update.message.reply_text("Please paste a URL starting with https://")
+                return True
+            ctx.user_data["caldav_url"] = text
+            await update.message.reply_text("Your CalDAV username (usually your email address):")
+            ctx.user_data["connect_step"] = "caldav_username"
+            return True
+
+        if step == "caldav_username":
+            ctx.user_data["caldav_username"] = text
+            await update.message.reply_text(
+                "Your password or app-specific password:\n\n"
+                "_(For iCloud/Google you must use an app password, not your main password)_",
+                parse_mode="Markdown"
+            )
+            ctx.user_data["connect_step"] = "caldav_password"
+            return True
+
+        if step == "caldav_password":
+            await ctx.bot.send_chat_action(chat_id=uid, action="typing")
+            caldav_url = ctx.user_data.get("caldav_url", "")
+            username = ctx.user_data.get("caldav_username", "")
+            password = text
+            try:
+                import caldav
+                client = caldav.DAVClient(url=caldav_url, username=username, password=password)
+                principal = client.principal()
+                calendars = principal.calendars()
+                if not calendars:
+                    raise ValueError("No calendars found.")
+                cal_names = [c.name for c in calendars]
+            except Exception as e:
+                for k in ("connect_step", "caldav_url", "caldav_username"):
+                    ctx.user_data.pop(k, None)
+                await update.message.reply_text(
+                    f"Could not connect: {e}\n\nPlease check your URL and credentials, then try /connect caldav again."
+                )
+                return True
+
+            storage = self._get_storage(uid)
+            storage.save_caldav_config({
+                "caldav_url": caldav_url,
+                "username": username,
+                "password": password,
+                "calendar_name": cal_names[0] if cal_names else None,
+            })
+            for k in ("connect_step", "caldav_url", "caldav_username"):
+                ctx.user_data.pop(k, None)
+            names_str = ", ".join(cal_names[:5])
+            await update.message.reply_text(
+                f"✅ CalDAV connected! Found calendars: {names_str}\n\n"
+                "I can now create, update and delete events."
+            )
             return True
 
         return False

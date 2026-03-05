@@ -42,5 +42,11 @@ def build_tool_registry(user_storage, has_google: bool) -> list:
         if user_storage.load_calendar_config():
             from bot.tools.ics_calendar import list_calendar_events_ics
             tools.append(list_calendar_events_ics)
+        if user_storage.load_caldav_config():
+            from bot.tools.caldav_calendar import (
+                list_caldav_events, create_caldav_event,
+                update_caldav_event, delete_caldav_event,
+            )
+            tools += [list_caldav_events, create_caldav_event, update_caldav_event, delete_caldav_event]
 
     return tools

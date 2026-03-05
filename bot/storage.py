@@ -55,6 +55,18 @@ class UserStorage:
         with open(path, "w") as f:
             json.dump(config, f)
 
+    def load_caldav_config(self) -> dict | None:
+        path = os.path.join(self.user_dir, "caldav_config.json")
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            return json.load(f)
+
+    def save_caldav_config(self, config: dict):
+        path = os.path.join(self.user_dir, "caldav_config.json")
+        with open(path, "w") as f:
+            json.dump(config, f)
+
     def delete(self):
         import shutil
         shutil.rmtree(self.user_dir, ignore_errors=True)
