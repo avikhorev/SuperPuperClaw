@@ -100,11 +100,11 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
 done
 
 # --- Authenticate Claude Code inside container ---
-echo "Starting bot container for Claude Code authentication..."
+echo "Starting bot container..."
 docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
 echo ""
-echo "Now authenticate Claude Code (opens a browser URL — paste the code when shown):"
-docker compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login < /dev/tty
+echo "Now authenticate Claude Code with your Claude account:"
+docker compose -f "$INSTALL_DIR/docker-compose.yml" exec -it bot claude auth login
 docker compose -f "$INSTALL_DIR/docker-compose.yml" restart
 
 echo ""
@@ -114,5 +114,7 @@ echo "Reload your shell or run:"
 echo "  source ~/.bashrc   (bash)"
 echo "  source ~/.zshrc    (zsh)"
 echo ""
-echo "Then type 'botadmin' to manage your bot."
+echo "Commands:"
+echo "  botadmin  — manage users, view logs, stats"
+echo "  botauth   — re-authenticate Claude Code if needed"
 echo ""
