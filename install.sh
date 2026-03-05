@@ -117,6 +117,9 @@ for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
     add_alias "botstatus" "$ALIAS_BOTSTATUS" "$rc_file"
 done
 echo "  ✓ Shell aliases updated (botadmin, botauth, botstatus)"
+# Apply to current shell if possible
+# shellcheck disable=SC1090
+[ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc" 2>/dev/null || true
 
 # --- Start bot ---
 # Ensure data dir exists and is writable by botuser (uid 1000) inside container
