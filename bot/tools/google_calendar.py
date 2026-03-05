@@ -54,3 +54,52 @@ def create_calendar_event(title: str, start: str, end: str, description: str = "
 
 
 create_calendar_event._needs_storage = True
+
+
+def update_calendar_event(event_id: str, title: str = "", start: str = "", end: str = "", description: str = "", storage=None) -> str:
+    """Update an existing Google Calendar event by event_id. Only provided fields are changed."""
+    try:
+        tokens = storage.load_oauth_tokens()
+        if not tokens:
+            return "Google not connected."
+        from bot.oauth import OAuthManager
+        from bot.config import Config
+        config = Config()
+        creds = OAuthManager(config.google_client_id, config.google_client_secret).get_credentials(tokens)
+        service = build("calendar", "v3", credentials=creds)
+        event = service.events().get(calendarId="primary", eventId=event_id).execute()
+        if title:
+            event["summary"] = title
+        if description:
+            event["description"] = description
+        if start:
+            event["start"] = {"dateTime": start}
+        if end:
+            event["end"] = {"dateTime": end}
+        updated = service.events().update(calendarId="primary", eventId=event_id, body=event).execute()
+        return f"Event updated: {updated.get('htmlLink')}"
+    except Exception as e:
+        return f"Could not update event: {e}"
+
+
+update_calendar_event._needs_storage = True
+
+
+def delete_calendar_event(event_id: str, storage=None) -> str:
+    """Delete a Google Calendar event by event_id."""
+    try:
+        tokens = storage.load_oauth_tokens()
+        if not tokens:
+            return "Google not connected."
+        from bot.oauth import OAuthManager
+        from bot.config import Config
+        config = Config()
+        creds = OAuthManager(config.google_client_id, config.google_client_secret).get_credentials(tokens)
+        service = build("calendar", "v3", credentials=creds)
+        service.events().delete(calendarId="primary", eventId=event_id).execute()
+        return "Event deleted."
+    except Exception as e:
+        return f"Could not delete event: {e}"
+
+
+delete_calendar_event._needs_storage = True
