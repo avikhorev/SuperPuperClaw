@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -16,7 +17,6 @@ def extract_auth_code_from_url(url: str) -> str | None:
     if not url:
         return None
     # URL-decode %2F -> /
-    import urllib.parse
     url = urllib.parse.unquote(url)
     match = re.search(r"[?&]code=([^&\s]+)", url)
     return match.group(1) if match else None
@@ -30,7 +30,7 @@ class OAuthManager:
     def _make_flow(self) -> Flow:
         return Flow.from_client_config(
             {
-                "web": {
+                "installed": {
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",

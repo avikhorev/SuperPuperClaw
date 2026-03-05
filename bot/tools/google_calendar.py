@@ -6,7 +6,7 @@ def list_calendar_events(time_min: str = None, max_results: int = 10, storage=No
     try:
         tokens = storage.load_oauth_tokens()
         if not tokens:
-            return "Google not connected. Use /connect google."
+            return "Google not connected."
         from bot.oauth import OAuthManager
         from bot.config import Config
         config = Config()
