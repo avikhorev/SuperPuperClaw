@@ -152,7 +152,7 @@ def main():
     write_env(env)
 
     # Step 4: Admin Telegram ID
-    print("\nStep 4: Admin Telegram ID")
+    print("\nStep 4: Admin account")
     if existing.get("ADMIN_TELEGRAM_ID"):
         admin_id_str = prompt_keep_or_change("Admin Telegram ID", existing["ADMIN_TELEGRAM_ID"])
         try:
@@ -162,19 +162,8 @@ def main():
         except ValueError:
             env["ADMIN_TELEGRAM_ID"] = existing["ADMIN_TELEGRAM_ID"]
     else:
-        print("  Enter your Telegram user ID (the bot will auto-approve you on first run).")
-        print("  To find your ID: message @userinfobot on Telegram.")
-        while True:
-            admin_id_str = input("  Your Telegram ID: ").strip()
-            if not admin_id_str:
-                continue
-            try:
-                env["ADMIN_TELEGRAM_ID"] = str(int(admin_id_str))
-                write_env(env)
-                print(f"  ✓ Admin ID saved: {env['ADMIN_TELEGRAM_ID']}")
-                break
-            except ValueError:
-                print("  Please enter a numeric ID.")
+        print("  The first user to send /start to the bot will become admin.")
+        print("  Start the bot, then open Telegram and send /start to your bot.")
 
     print("\n✓ Setup complete!")
     print("\nStart the bot:     docker compose up -d")
