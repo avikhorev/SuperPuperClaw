@@ -32,8 +32,21 @@ class GlobalDB:
             ).fetchone()
             return dict(row) if row else None
 
+    def seed_admin(self, telegram_id: int):
+        """Pre-register admin from ADMIN_TELEGRAM_ID env var if no users exist yet."""
+        if self.list_users():
+            return
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO users (telegram_id, username, status, is_admin, created_at) VALUES (?,?,?,?,?)",
+                (telegram_id, "", "approved", 1, datetime.now(timezone.utc).isoformat())
+            )
+
     def register_user(self, telegram_id: int, username: str):
         if self.get_user(telegram_id):
+            # Update username if it changed
+            with self._conn() as conn:
+                conn.execute("UPDATE users SET username=? WHERE telegram_id=?", (username, telegram_id))
             return
         is_first = not self.list_users()
         status = "approved" if is_first else "pending"
