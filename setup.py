@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Interactive setup script — run once after cloning the repo."""
+"""Interactive setup script — run once after cloning the repo.
+
+Optional args (skip prompts, still show settings):
+  --token TOKEN
+  --admin-id ID
+  --google-client-id ID --google-client-secret SECRET
+  --no-google
+"""
+import argparse
 import json
 import os
 import ssl
@@ -82,19 +90,36 @@ def write_env(values):
     print("\n  ✓ .env written")
 
 
+def parse_args():
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--token")
+    p.add_argument("--admin-id")
+    p.add_argument("--google-client-id")
+    p.add_argument("--google-client-secret")
+    p.add_argument("--no-google", action="store_true")
+    return p.parse_known_args()[0]
+
+
 def main():
+    args = parse_args()
+
     print("\n=== Bot Setup ===\n")
 
     existing = load_existing_env()
-    is_update = bool(existing)
-    if is_update:
+    if existing and not any(vars(args).values()):
         print("  Existing configuration found. Press Enter to keep each value, or type a new one.\n")
 
     env = dict(existing)
 
     # Step 1: Telegram
     print("Step 1: Telegram Bot Token")
-    if existing.get("TELEGRAM_TOKEN"):
+    if args.token:
+        token = args.token
+        check("Validating token", lambda: validate_telegram_token(token))
+        env["TELEGRAM_TOKEN"] = token
+        display = "*" * 8 + token[-4:]
+        print(f"  Token: {display}")
+    elif existing.get("TELEGRAM_TOKEN"):
         token = prompt_keep_or_change("Token", existing["TELEGRAM_TOKEN"], secret=True)
         if token != existing["TELEGRAM_TOKEN"]:
             if not check("Validating token", lambda: validate_telegram_token(token)):
@@ -131,7 +156,15 @@ def main():
     # Step 3: Google (optional)
     print("\nStep 3: Google Integration (optional)")
     print("  Enables Gmail, Google Calendar, and Google Drive for your users.")
-    if existing.get("GOOGLE_CLIENT_ID"):
+    if args.no_google:
+        print("  Skipped (--no-google)")
+        env.pop("GOOGLE_CLIENT_ID", None)
+        env.pop("GOOGLE_CLIENT_SECRET", None)
+    elif args.google_client_id:
+        env["GOOGLE_CLIENT_ID"] = args.google_client_id
+        env["GOOGLE_CLIENT_SECRET"] = args.google_client_secret or existing.get("GOOGLE_CLIENT_SECRET", "")
+        print(f"  ✓ Google Client ID: {args.google_client_id}")
+    elif existing.get("GOOGLE_CLIENT_ID"):
         keep = input("  Google integration is configured. Keep it? [Y/n]: ").strip().lower()
         if keep == "n":
             want_google = input("  Reconfigure Google integration? [y/n]: ").strip().lower() == "y"
@@ -153,7 +186,14 @@ def main():
 
     # Step 4: Admin Telegram ID
     print("\nStep 4: Admin account")
-    if existing.get("ADMIN_TELEGRAM_ID"):
+    if args.admin_id:
+        try:
+            env["ADMIN_TELEGRAM_ID"] = str(int(args.admin_id))
+            write_env(env)
+            print(f"  ✓ Admin ID: {env['ADMIN_TELEGRAM_ID']}")
+        except ValueError:
+            print(f"  Invalid --admin-id value: {args.admin_id}")
+    elif existing.get("ADMIN_TELEGRAM_ID"):
         admin_id_str = prompt_keep_or_change("Admin Telegram ID", existing["ADMIN_TELEGRAM_ID"])
         try:
             env["ADMIN_TELEGRAM_ID"] = str(int(admin_id_str))
