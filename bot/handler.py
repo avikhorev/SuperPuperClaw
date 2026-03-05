@@ -14,10 +14,9 @@ from bot.tools.memory_tool import update_memory
 
 logger = logging.getLogger(__name__)
 
-HELP_TEXT = """I'm your personal AI assistant!
+HELP_TEXT_BASE = """I'm your personal AI assistant!
 
 📅 *Productivity*
-• Google Calendar, Gmail, Drive — type /connect google
 • Reminders — "remind me every Monday at 9am to..."
 
 🔍 *Research*
@@ -37,6 +36,10 @@ Just talk to me naturally — no need for commands!
 
 Commands: /help /connect /status"""
 
+HELP_TEXT_GOOGLE = """
+📅 *Google*
+• Calendar, Gmail, Drive — type /connect google to link your account"""
+
 
 class BotHandler:
     def __init__(self, config, global_db: GlobalDB):
@@ -47,7 +50,7 @@ class BotHandler:
         return UserStorage(data_dir=self.config.data_dir, telegram_id=telegram_id)
 
     def _get_runner(self, storage: UserStorage) -> AgentRunner:
-        has_google = storage.load_oauth_tokens() is not None
+        has_google = bool(self.config.google_client_id) and storage.load_oauth_tokens() is not None
         tools = build_tool_registry(storage, has_google=has_google)
         memory_fn = partial(update_memory, storage=storage)
         memory_fn.__name__ = "update_memory"
@@ -91,7 +94,10 @@ class BotHandler:
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
             return
-        await update.message.reply_text(HELP_TEXT, parse_mode="Markdown")
+        text = HELP_TEXT_BASE
+        if self.config.google_client_id:
+            text = HELP_TEXT_GOOGLE + text
+        await update.message.reply_text(text, parse_mode="Markdown")
 
     async def approve_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
@@ -128,10 +134,15 @@ class BotHandler:
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
             return
-        storage = self._get_storage(uid)
-        has_google = storage.load_oauth_tokens() is not None
-        google_status = "✅ Connected" if has_google else "❌ Not connected — use /connect google"
-        await update.message.reply_text(f"Google: {google_status}")
+        lines = []
+        if self.config.google_client_id:
+            storage = self._get_storage(uid)
+            has_google = storage.load_oauth_tokens() is not None
+            google_status = "✅ Connected" if has_google else "❌ Not connected — use /connect google"
+            lines.append(f"Google: {google_status}")
+        else:
+            lines.append("Google: not configured by admin")
+        await update.message.reply_text("\n".join(lines))
 
     async def connect_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
