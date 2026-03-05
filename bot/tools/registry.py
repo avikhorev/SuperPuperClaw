@@ -7,6 +7,8 @@ from bot.tools.news import get_news
 from bot.tools.weather import get_weather
 from bot.tools.currency import convert_currency
 from bot.tools.url_shortener import shorten_url
+from bot.tools.qrcode_tool import generate_qr
+from bot.tools.pdf_tool import extract_pdf_text
 
 
 def build_tool_registry(user_storage, has_google: bool) -> list:
@@ -20,6 +22,8 @@ def build_tool_registry(user_storage, has_google: bool) -> list:
         get_weather,
         convert_currency,
         shorten_url,
+        generate_qr,
+        extract_pdf_text,
     ]
     if has_google:
         from bot.tools.google_calendar import list_calendar_events, create_calendar_event
