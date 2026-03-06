@@ -34,7 +34,14 @@ def _transcript_via_ytdlp(video_id: str) -> str:
 
     import shutil, tempfile
     url = f"https://www.youtube.com/watch?v={video_id}"
+    ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
+    ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
+    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
     ydl_opts = {"quiet": True, "no_warnings": True}
+    if ws_user and ws_pass:
+        ydl_opts["proxy"] = f"http://{ws_user}:{ws_pass}@p.webshare.io:80"
+    elif proxy_url:
+        ydl_opts["proxy"] = proxy_url
     _tmp_cookies = None
     if os.path.exists(_COOKIES_PATH):
         # Copy to a writable temp file — yt-dlp may try to update the cookie jar
@@ -58,7 +65,16 @@ def _transcript_via_ytdlp(video_id: str) -> str:
             jar.load(_COOKIES_PATH, ignore_discard=True, ignore_expires=True)
         except Exception:
             pass
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    handlers = [urllib.request.HTTPCookieProcessor(jar)]
+    ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
+    ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
+    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
+    if ws_user and ws_pass:
+        proxy_addr = f"http://{ws_user}:{ws_pass}@p.webshare.io:80"
+        handlers.append(urllib.request.ProxyHandler({"http": proxy_addr, "https": proxy_addr}))
+    elif proxy_url:
+        handlers.append(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
+    opener = urllib.request.build_opener(*handlers)
 
     try:
         for lang in ["en", "ru"] + list(all_subs.keys()):
