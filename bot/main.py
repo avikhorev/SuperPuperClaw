@@ -50,6 +50,15 @@ def main():
 
     async def on_startup(app):
         scheduler.start()
+        from telegram import BotCommand
+        await app.bot.set_my_commands([
+            BotCommand("start",     "Start or restart the bot"),
+            BotCommand("help",      "Show help and available commands"),
+            BotCommand("connect",   "Connect email / calendar account"),
+            BotCommand("reminders", "List active reminders"),
+            BotCommand("cancel",    "Cancel current operation"),
+            BotCommand("status",    "Show your account status"),
+        ])
 
     app.post_init = on_startup
 
