@@ -220,9 +220,9 @@ class BotHandler:
                     "google": None,
                 }
                 CALDAV_HINTS_LOCAL = {
-                    "icloud": "Use an *app-specific password* — not your Apple ID password.\nGenerate one at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords.",
-                    "fastmail": "Use your Fastmail password or an app password from Fastmail settings.",
-                    "outlook": "Use your Microsoft account email and password.\n_(Corporate SSO accounts may not work)_",
+                    "icloud": "Use an *app-specific password* — not your Apple ID password.\n[Generate app password](https://appleid.apple.com/account/manage/section/security)",
+                    "fastmail": "Use a Fastmail app password.\n[Generate app password](https://app.fastmail.com/settings/security/tokens/new)",
+                    "outlook": "Use your Microsoft account password.\n[Sign in to Outlook](https://outlook.live.com)\n_(Corporate SSO accounts may not work — contact your IT admin)_",
                     "google": "Use a Google *app password* — not your main Google password.\n[Generate app password](https://myaccount.google.com/apppasswords)\n_(Requires 2-Step Verification to be enabled)_",
                 }
                 ctx.user_data["caldav_url"] = CALDAV_URLS_LOCAL[provider] or "__build__"
