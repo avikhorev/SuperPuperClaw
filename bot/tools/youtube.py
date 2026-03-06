@@ -61,22 +61,21 @@ def _transcript_via_ytdlp(video_id: str) -> str:
     # so a direct request works.
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    try:
-        for lang in ["en", "ru"] + list(all_subs.keys()):
-            if lang not in all_subs:
-                continue
-            for fmt in all_subs[lang]:
-                if fmt.get("ext") in ("vtt", "srv1", "ttml"):
-                    try:
-                        req = urllib.request.Request(fmt["url"], headers={"User-Agent": "Mozilla/5.0"})
-                        with opener.open(req, timeout=10) as r:
-                            content = r.read().decode("utf-8")
-                        text = _parse_vtt(content)
-                        if text:
-                            return text[:8000]
-                    except Exception:
-                        continue
-        return ""
+    for lang in ["en", "ru"] + list(all_subs.keys()):
+        if lang not in all_subs:
+            continue
+        for fmt in all_subs[lang]:
+            if fmt.get("ext") in ("vtt", "srv1", "ttml"):
+                try:
+                    req = urllib.request.Request(fmt["url"], headers={"User-Agent": "Mozilla/5.0"})
+                    with opener.open(req, timeout=10) as r:
+                        content = r.read().decode("utf-8")
+                    text = _parse_vtt(content)
+                    if text:
+                        return text[:8000]
+                except Exception:
+                    continue
+    return ""
 
 
 def _proxy_url() -> str:
