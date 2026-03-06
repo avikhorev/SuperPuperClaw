@@ -32,10 +32,16 @@ def _transcript_via_ytdlp(video_id: str) -> str:
     import urllib.request
     import yt_dlp
 
+    import shutil, tempfile
     url = f"https://www.youtube.com/watch?v={video_id}"
     ydl_opts = {"quiet": True, "no_warnings": True}
+    _tmp_cookies = None
     if os.path.exists(_COOKIES_PATH):
-        ydl_opts["cookiefile"] = _COOKIES_PATH
+        # Copy to a writable temp file — yt-dlp may try to update the cookie jar
+        _tmp_cookies = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+        shutil.copy2(_COOKIES_PATH, _tmp_cookies.name)
+        _tmp_cookies.close()
+        ydl_opts["cookiefile"] = _tmp_cookies.name
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -54,21 +60,28 @@ def _transcript_via_ytdlp(video_id: str) -> str:
             pass
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    for lang in ["en", "ru"] + list(all_subs.keys()):
-        if lang not in all_subs:
-            continue
-        for fmt in all_subs[lang]:
-            if fmt.get("ext") in ("vtt", "srv1", "ttml"):
-                try:
-                    req = urllib.request.Request(fmt["url"], headers={"User-Agent": "Mozilla/5.0"})
-                    with opener.open(req, timeout=10) as r:
-                        content = r.read().decode("utf-8")
-                    text = _parse_vtt(content)
-                    if text:
-                        return text[:8000]
-                except Exception:
-                    continue
-    return ""
+    try:
+        for lang in ["en", "ru"] + list(all_subs.keys()):
+            if lang not in all_subs:
+                continue
+            for fmt in all_subs[lang]:
+                if fmt.get("ext") in ("vtt", "srv1", "ttml"):
+                    try:
+                        req = urllib.request.Request(fmt["url"], headers={"User-Agent": "Mozilla/5.0"})
+                        with opener.open(req, timeout=10) as r:
+                            content = r.read().decode("utf-8")
+                        text = _parse_vtt(content)
+                        if text:
+                            return text[:8000]
+                    except Exception:
+                        continue
+        return ""
+    finally:
+        if _tmp_cookies:
+            try:
+                os.unlink(_tmp_cookies.name)
+            except Exception:
+                pass
 
 
 def _make_api():
