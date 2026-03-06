@@ -7,7 +7,6 @@ from bot.tools.news import get_news
 from bot.tools.weather import get_weather
 from bot.tools.currency import convert_currency
 from bot.tools.url_shortener import shorten_url
-from bot.tools.qrcode_tool import generate_qr
 from bot.tools.pdf_tool import extract_pdf_text
 from bot.tools.flights import search_flights
 
@@ -23,7 +22,6 @@ def build_tool_registry(user_storage, scheduler=None, telegram_id=None, has_goog
         get_weather,
         convert_currency,
         shorten_url,
-        generate_qr,
         extract_pdf_text,
         search_flights,
     ]
