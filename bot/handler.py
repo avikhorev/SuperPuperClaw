@@ -690,20 +690,37 @@ class BotHandler:
         voice_file = await update.message.voice.get_file()
         ogg_bytes = bytes(await voice_file.download_as_bytearray())
 
+        async def keep_typing(stop_event: asyncio.Event):
+            while not stop_event.is_set():
+                try:
+                    await ctx.bot.send_chat_action(chat_id=uid, action="typing")
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(stop_event.wait(), timeout=4)
+                except asyncio.TimeoutError:
+                    pass
+
         async def process():
-            loop = asyncio.get_running_loop()
-            transcript = await loop.run_in_executor(None, self._transcribe, ogg_bytes)
-            storage = self._get_storage(uid)
-            storage.db.add_message(role="user", content=f"[Voice] {transcript}")
-            runner = self._get_runner(storage, telegram_id=uid)
+            stop_typing = asyncio.Event()
+            typing_task = asyncio.create_task(keep_typing(stop_typing))
             try:
-                reply = await runner.run(transcript)
-            except Exception as e:
-                logger.exception("Agent error (voice) for user %s", uid)
-                reply = "Something went wrong processing your voice message."
-                await self._notify_admin_error(ctx, uid, e, "voice")
-            storage.append_log(transcript, reply)
-            storage.db.add_message(role="assistant", content=reply)
+                loop = asyncio.get_running_loop()
+                transcript = await loop.run_in_executor(None, self._transcribe, ogg_bytes)
+                storage = self._get_storage(uid)
+                storage.db.add_message(role="user", content=f"[Voice] {transcript}")
+                runner = self._get_runner(storage, telegram_id=uid)
+                try:
+                    reply = await runner.run(transcript)
+                except Exception as e:
+                    logger.exception("Agent error (voice) for user %s", uid)
+                    reply = "Something went wrong processing your voice message."
+                    await self._notify_admin_error(ctx, uid, e, "voice")
+                storage.append_log(transcript, reply)
+                storage.db.add_message(role="assistant", content=reply)
+            finally:
+                stop_typing.set()
+                typing_task.cancel()
             await _send_reply_to_chat(ctx.bot, uid, reply)
 
         asyncio.create_task(process())
