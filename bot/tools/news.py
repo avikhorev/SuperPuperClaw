@@ -31,6 +31,16 @@ def get_news(topic: str = "") -> str:
                 if filter_topic and topic.lower() not in (title + summary).lower():
                     continue
                 items.append(f"**{title}**\n{entry.get('link', '')}")
+        if not items and filter_topic:
+            # Topic-filtered search found nothing — fall back to general headlines
+            all_items = []
+            for feed_url in FEEDS:
+                feed = feedparser.parse(feed_url)
+                for entry in feed.entries[:5]:
+                    title = entry.get("title", "")
+                    all_items.append(f"**{title}**\n{entry.get('link', '')}")
+            if all_items:
+                return f"No headlines specifically about '{topic}'. Here are the latest general headlines:\n\n" + "\n\n".join(all_items[:12])
         if not items:
             return "NEWS_FEEDS_EMPTY: No articles retrieved from any feed. Do NOT invent or summarize news from memory. Tell the user the feeds are currently unavailable and suggest checking a news site directly."
         return "\n\n".join(items[:12])
