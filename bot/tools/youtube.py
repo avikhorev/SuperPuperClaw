@@ -56,11 +56,10 @@ def _transcript_via_ytdlp(video_id: str) -> str:
             jar.load(_COOKIES_PATH, ignore_discard=True, ignore_expires=True)
         except Exception:
             pass
-    handlers = [urllib.request.HTTPCookieProcessor(jar)]
-    p = _proxy_url()
-    if p:
-        handlers.append(urllib.request.ProxyHandler({"http": p, "https": p}))
-    opener = urllib.request.build_opener(*handlers)
+    # Subtitle timedtext URLs are fetched directly — they return 429 through
+    # datacenter proxies. The signed URL is IP-agnostic (ip=0.0.0.0 in params)
+    # so a direct request works.
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
     try:
         for lang in ["en", "ru"] + list(all_subs.keys()):
