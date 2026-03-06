@@ -34,14 +34,10 @@ def _transcript_via_ytdlp(video_id: str) -> str:
 
     import shutil, tempfile
     url = f"https://www.youtube.com/watch?v={video_id}"
-    ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
-    ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
-    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
     ydl_opts = {"quiet": True, "no_warnings": True}
-    if ws_user and ws_pass:
-        ydl_opts["proxy"] = f"http://{ws_user}:{ws_pass}@p.webshare.io:80"
-    elif proxy_url:
-        ydl_opts["proxy"] = proxy_url
+    p = _proxy_url()
+    if p:
+        ydl_opts["proxy"] = p
     _tmp_cookies = None
     if os.path.exists(_COOKIES_PATH):
         # Copy to a writable temp file — yt-dlp may try to update the cookie jar
@@ -66,14 +62,9 @@ def _transcript_via_ytdlp(video_id: str) -> str:
         except Exception:
             pass
     handlers = [urllib.request.HTTPCookieProcessor(jar)]
-    ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
-    ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
-    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
-    if ws_user and ws_pass:
-        proxy_addr = f"http://{ws_user}:{ws_pass}@p.webshare.io:80"
-        handlers.append(urllib.request.ProxyHandler({"http": proxy_addr, "https": proxy_addr}))
-    elif proxy_url:
-        handlers.append(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
+    p = _proxy_url()
+    if p:
+        handlers.append(urllib.request.ProxyHandler({"http": p, "https": p}))
     opener = urllib.request.build_opener(*handlers)
 
     try:
@@ -100,19 +91,23 @@ def _transcript_via_ytdlp(video_id: str) -> str:
                 pass
 
 
-def _make_api():
+def _proxy_url() -> str:
+    """Build proxy URL from env vars. Returns empty string if not configured."""
     ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
     ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
-    if ws_user and ws_pass:
-        from youtube_transcript_api.proxies import WebshareProxyConfig
-        return YouTubeTranscriptApi(
-            proxy_config=WebshareProxyConfig(proxy_username=ws_user, proxy_password=ws_pass)
-        )
-    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
-    if proxy_url:
+    ws_host = os.getenv("WEBSHARE_PROXY_HOST", "")
+    ws_port = os.getenv("WEBSHARE_PROXY_PORT", "")
+    if ws_user and ws_pass and ws_host and ws_port:
+        return f"http://{ws_user}:{ws_pass}@{ws_host}:{ws_port}"
+    return os.getenv("YOUTUBE_PROXY_URL", "")
+
+
+def _make_api():
+    url = _proxy_url()
+    if url:
         from youtube_transcript_api.proxies import GenericProxyConfig
         return YouTubeTranscriptApi(
-            proxy_config=GenericProxyConfig(http_url=proxy_url, https_url=proxy_url)
+            proxy_config=GenericProxyConfig(http_url=url, https_url=url)
         )
     return YouTubeTranscriptApi()
 
