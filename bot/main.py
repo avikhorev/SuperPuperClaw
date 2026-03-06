@@ -48,7 +48,10 @@ def main():
         storage = UserStorage(data_dir=config.data_dir, telegram_id=user["telegram_id"])
         schedule_heartbeat(scheduler, user["telegram_id"], storage, app.bot, tools_factory)
 
-    scheduler.start()
+    async def on_startup(app):
+        scheduler.start()
+
+    app.post_init = on_startup
 
     app.add_handler(CommandHandler("start", handler.start))
     app.add_handler(CommandHandler("help", handler.help_command))
