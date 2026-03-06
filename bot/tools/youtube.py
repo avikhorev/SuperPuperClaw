@@ -1,5 +1,15 @@
+import os
 import re
 from youtube_transcript_api import YouTubeTranscriptApi
+
+
+def _make_api():
+    proxy_url = os.getenv("YOUTUBE_PROXY_URL")  # e.g. http://user:pass@host:port
+    if proxy_url:
+        from youtube_transcript_api.proxies import GenericProxyConfig
+        proxy_config = GenericProxyConfig(http_url=proxy_url, https_url=proxy_url)
+        return YouTubeTranscriptApi(proxy_config=proxy_config)
+    return YouTubeTranscriptApi()
 
 
 def get_youtube_transcript(url: str) -> str:
@@ -10,10 +20,10 @@ def get_youtube_transcript(url: str) -> str:
             return "Could not extract video ID from URL."
         vid = video_id.group(1)
 
-        api = YouTubeTranscriptApi()
-
-        # List available transcripts, prefer manual over auto-generated
+        api = _make_api()
         transcript_list = api.list(vid)
+
+        # Prefer manual captions over auto-generated
         transcript = None
         for t in transcript_list:
             if not t.is_generated:
