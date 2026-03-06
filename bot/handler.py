@@ -675,6 +675,17 @@ class BotHandler:
         text = update.message.text or ""
         storage = self._get_storage(uid)
         storage.db.add_message(role="user", content=text)
+
+        # Handle QR code requests directly without going through the agent
+        if _re.search(r"\bqr\b", text, _re.IGNORECASE):
+            from bot.tools.qrcode_tool import generate_qr
+            # Extract what to encode: everything after "for", "для", "of" etc., or full text
+            m = _re.search(r"(?:qr\s+(?:code\s+)?(?:for|для|of|на)\s+)(.+)", text, _re.IGNORECASE)
+            qr_text = m.group(1).strip() if m else text
+            result = generate_qr(qr_text)
+            await _send_reply(update.message, result)
+            return
+
         runner = self._get_runner(storage, telegram_id=uid)
 
         async def keep_typing(stop_event: asyncio.Event):
