@@ -4,7 +4,13 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 
 def _make_api():
-    proxy_url = os.getenv("YOUTUBE_PROXY_URL")  # e.g. http://user:pass@host:port
+    ws_user = os.getenv("WEBSHARE_PROXY_USERNAME")
+    ws_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
+    if ws_user and ws_pass:
+        from youtube_transcript_api.proxies import WebshareProxyConfig
+        proxy_config = WebshareProxyConfig(proxy_username=ws_user, proxy_password=ws_pass)
+        return YouTubeTranscriptApi(proxy_config=proxy_config)
+    proxy_url = os.getenv("YOUTUBE_PROXY_URL")
     if proxy_url:
         from youtube_transcript_api.proxies import GenericProxyConfig
         proxy_config = GenericProxyConfig(http_url=proxy_url, https_url=proxy_url)

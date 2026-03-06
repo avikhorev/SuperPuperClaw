@@ -150,6 +150,23 @@ def main():
         print("    claude auth login")
         input("  Press Enter once authenticated to continue: ")
 
+    # Step 3: Webshare proxy (optional — needed for YouTube transcripts on cloud IPs)
+    print("\nStep 3: Webshare proxy (optional)")
+    print("  YouTube blocks cloud server IPs. A Webshare proxy fixes this.")
+    print("  Free tier: https://www.webshare.io  (10 free proxies)")
+    if existing.get("WEBSHARE_PROXY_USERNAME"):
+        ws_user = prompt_keep_or_change("Webshare username", existing["WEBSHARE_PROXY_USERNAME"])
+        ws_pass = prompt_keep_or_change("Webshare password", existing.get("WEBSHARE_PROXY_PASSWORD", ""), secret=True)
+    else:
+        ws_user = input("  Webshare proxy username (Enter to skip): ").strip()
+        ws_pass = input("  Webshare proxy password (Enter to skip): ").strip() if ws_user else ""
+    if ws_user and ws_pass:
+        env["WEBSHARE_PROXY_USERNAME"] = ws_user
+        env["WEBSHARE_PROXY_PASSWORD"] = ws_pass
+        print("  ✓ Webshare proxy configured")
+    else:
+        print("  Skipped — YouTube transcripts may not work on cloud IPs")
+
     write_env(env)
 
     # Step 4: Admin account
