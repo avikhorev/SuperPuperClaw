@@ -41,8 +41,8 @@ def _build_help_text(config, storage) -> str:
     lines.append("\n*Commands:*")
     lines.append("/help — this message")
     lines.append("/status — show connected integrations")
-    lines.append("/connect email — link email (Gmail, Outlook, any IMAP)")
-    lines.append("/connect caldav — link calendar with write access (iCloud, Fastmail, Nextcloud…)")
+    lines.append("/connect email you@example.com — link email")
+    lines.append("/connect caldav you@example.com — link calendar (read/write)")
     lines.append("/connect calendar — link calendar read-only (ICS URL)")
 
     lines.append("\nJust talk to me naturally — no commands needed!")
@@ -165,38 +165,36 @@ class BotHandler:
         email_arg = args[1] if len(args) > 1 and "@" in args[1] else None
 
         if subcommand == "email":
-            if email_arg:
-                from bot.imap_providers import get_provider_settings, get_app_password_instructions
-                ctx.user_data["connect_email"] = email_arg
-                settings = get_provider_settings(email_arg)
-                instructions = get_app_password_instructions(email_arg)
-                if settings:
-                    ctx.user_data["connect_imap_settings"] = settings
-                    await update.message.reply_text(instructions, parse_mode="Markdown")
-                    ctx.user_data["connect_step"] = "email_password"
-                else:
-                    await update.message.reply_text(
-                        f"Got it — {email_arg}\n\nWhat's your IMAP server? (e.g. `imap.yourprovider.com`)",
-                        parse_mode="Markdown"
-                    )
-                    ctx.user_data["connect_step"] = "email_imap_host"
+            if not email_arg:
+                await update.message.reply_text("Please provide your email address:\n`/connect email you@example.com`", parse_mode="Markdown")
+                return
+            from bot.imap_providers import get_provider_settings, get_app_password_instructions
+            ctx.user_data["connect_email"] = email_arg
+            settings = get_provider_settings(email_arg)
+            instructions = get_app_password_instructions(email_arg)
+            if settings:
+                ctx.user_data["connect_imap_settings"] = settings
+                await update.message.reply_text(instructions, parse_mode="Markdown")
+                ctx.user_data["connect_step"] = "email_password"
             else:
                 await update.message.reply_text(
-                    "Let's connect your email.\n\nWhat's your email address?"
+                    f"Got it — {email_arg}\n\nWhat's your IMAP server? (e.g. `imap.yourprovider.com`)",
+                    parse_mode="Markdown"
                 )
-                ctx.user_data["connect_step"] = "email_address"
+                ctx.user_data["connect_step"] = "email_imap_host"
 
         elif subcommand == "caldav":
-            if email_arg:
-                ctx.user_data["caldav_username"] = email_arg
+            if not email_arg:
+                await update.message.reply_text("Please provide your email address:\n`/connect caldav you@example.com`", parse_mode="Markdown")
+                return
+            ctx.user_data["caldav_username"] = email_arg
             await update.message.reply_text(
-                "Let's connect your calendar so I can create, edit and delete events.\n\n"
-                "Which calendar do you use?\n\n"
+                "Which calendar provider do you use?\n\n"
                 "🍎 *iCloud* — type: `icloud`\n"
                 "📧 *Fastmail* — type: `fastmail`\n"
                 "🏢 *Outlook* — type: `outlook`\n"
                 "🌐 *Google* — type: `google`\n"
-                "🌐 *Other* — type your CalDAV server URL directly",
+                "🌐 *Other* — paste your CalDAV server URL",
                 parse_mode="Markdown"
             )
             ctx.user_data["connect_step"] = "caldav_provider"
@@ -213,8 +211,8 @@ class BotHandler:
 
         else:
             lines = ["What would you like to connect?\n"]
-            lines.append("/connect email — Email (Gmail, Outlook, any IMAP)")
-            lines.append("/connect caldav — Calendar with write access (iCloud, Fastmail, Outlook…)")
+            lines.append("/connect email you@example.com — Email (Gmail, Outlook, any IMAP)")
+            lines.append("/connect caldav you@example.com — Calendar read/write (iCloud, Fastmail, Outlook, Google…)")
             lines.append("/connect calendar — Calendar read-only (ICS URL)")
             await update.message.reply_text("\n".join(lines))
 
