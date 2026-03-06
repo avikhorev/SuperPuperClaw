@@ -62,6 +62,18 @@ class UserStorage:
         with open(path) as f:
             return json.load(f)
 
+    def load_microsoft_tokens(self) -> dict | None:
+        path = os.path.join(self.user_dir, "microsoft_tokens.json")
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            return json.load(f)
+
+    def save_microsoft_tokens(self, tokens: dict):
+        path = os.path.join(self.user_dir, "microsoft_tokens.json")
+        with open(path, "w") as f:
+            json.dump(tokens, f)
+
     def save_caldav_config(self, config: dict):
         path = os.path.join(self.user_dir, "caldav_config.json")
         with open(path, "w") as f:

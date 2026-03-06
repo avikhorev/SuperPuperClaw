@@ -15,3 +15,5 @@ class Config:
         self.data_dir = os.getenv("DATA_DIR", "/data")
         self.google_client_id = os.getenv("GOOGLE_CLIENT_ID") or None
         self.google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or None
+        self.microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID") or None
+        self.microsoft_client_secret = os.getenv("MICROSOFT_CLIENT_SECRET") or None

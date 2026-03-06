@@ -31,6 +31,22 @@ def build_tool_registry(user_storage, has_google: bool) -> list:
         from bot.tools.google_drive import search_drive_files
         tools += [list_calendar_events, create_calendar_event, update_calendar_event, delete_calendar_event, list_emails, send_email, search_drive_files]
 
+    if user_storage is not None and user_storage.load_microsoft_tokens():
+        from bot.tools.microsoft_mail import (
+            list_emails_microsoft, get_email_microsoft, send_email_microsoft,
+            reply_email_microsoft, delete_email_microsoft,
+        )
+        from bot.tools.microsoft_calendar import (
+            list_calendar_events_microsoft, create_calendar_event_microsoft,
+            update_calendar_event_microsoft, delete_calendar_event_microsoft,
+        )
+        tools += [
+            list_emails_microsoft, get_email_microsoft, send_email_microsoft,
+            reply_email_microsoft, delete_email_microsoft,
+            list_calendar_events_microsoft, create_calendar_event_microsoft,
+            update_calendar_event_microsoft, delete_calendar_event_microsoft,
+        ]
+
     if user_storage is not None:
         if user_storage.load_imap_config():
             from bot.tools.imap_email import (
