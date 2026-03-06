@@ -183,6 +183,28 @@ pytest tests/e2e/test_e2e_full_stack.py -v
 TG_TEST_API_ID=... TG_TEST_API_HASH=... bash scripts/run_testserver_e2e.sh
 ```
 
+## Uninstall
+
+Stop and remove the container, image, and network:
+
+```bash
+cd SuperPuperClaw
+docker compose down --rmi all
+```
+
+To also delete all user data (messages, memory, credentials):
+
+```bash
+docker compose down --rmi all --volumes
+```
+
+Then remove the repo and shell aliases:
+
+```bash
+cd ~ && rm -rf SuperPuperClaw
+sed -i '/botadmin\|botauth/d' ~/.bashrc ~/.zshrc 2>/dev/null || true
+```
+
 ## License
 
 MIT
