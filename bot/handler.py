@@ -188,16 +188,66 @@ class BotHandler:
                 await update.message.reply_text("Please provide your email address:\n`/connect caldav you@example.com`", parse_mode="Markdown")
                 return
             ctx.user_data["caldav_username"] = email_arg
-            await update.message.reply_text(
-                "Which calendar provider do you use?\n\n"
-                "🍎 *iCloud* — type: `icloud`\n"
-                "📧 *Fastmail* — type: `fastmail`\n"
-                "🏢 *Outlook* — type: `outlook`\n"
-                "🌐 *Google* — type: `google`\n"
-                "🌐 *Other* — paste your CalDAV server URL",
-                parse_mode="Markdown"
-            )
-            ctx.user_data["connect_step"] = "caldav_provider"
+            domain = email_arg.split("@")[-1].lower()
+            DOMAIN_PROVIDER = {
+                "gmail.com": "google", "googlemail.com": "google",
+                "icloud.com": "icloud", "me.com": "icloud", "mac.com": "icloud",
+                "fastmail.com": "fastmail", "fastmail.fm": "fastmail",
+                "outlook.com": "outlook", "hotmail.com": "outlook",
+                "live.com": "outlook", "msn.com": "outlook",
+            }
+            provider = DOMAIN_PROVIDER.get(domain)
+            if provider:
+                # Inject as if the user typed the provider and let the existing step handle it
+                ctx.user_data["connect_step"] = "caldav_provider"
+                # Simulate by directly processing the provider
+                fake_update_text = provider
+                ctx.user_data["_caldav_auto_provider"] = provider
+            else:
+                ctx.user_data["_caldav_auto_provider"] = None
+            if provider:
+                await update.message.reply_text(
+                    f"Detected *{provider.capitalize()}* from your email domain. Setting up…",
+                    parse_mode="Markdown"
+                )
+                # Fall through to caldav_provider handling below by setting step and re-entering flow
+                ctx.user_data["connect_step"] = "caldav_provider"
+                # Directly process the provider without waiting for user input
+                CALDAV_URLS_LOCAL = {
+                    "icloud": "https://caldav.icloud.com",
+                    "fastmail": "https://caldav.fastmail.com",
+                    "outlook": None,
+                    "google": None,
+                }
+                CALDAV_HINTS_LOCAL = {
+                    "icloud": "Use an *app-specific password* — not your Apple ID password.\nGenerate one at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords.",
+                    "fastmail": "Use your Fastmail password or an app password from Fastmail settings.",
+                    "outlook": "Use your Microsoft account email and password.\n_(Corporate SSO accounts may not work)_",
+                    "google": "Use a Google *app password* — not your main Google password.\nGenerate one at [myaccount.google.com](https://myaccount.google.com) → Security → App passwords.\n_(Requires 2-Step Verification to be enabled)_",
+                }
+                ctx.user_data["caldav_url"] = CALDAV_URLS_LOCAL[provider] or "__build__"
+                ctx.user_data["caldav_provider"] = provider
+                ctx.user_data["caldav_hint"] = CALDAV_HINTS_LOCAL[provider]
+                if ctx.user_data["caldav_url"] == "__build__":
+                    if provider == "google":
+                        ctx.user_data["caldav_url"] = f"https://apidata.googleusercontent.com/caldav/v2/{email_arg}/events"
+                    else:
+                        ctx.user_data["caldav_url"] = f"https://outlook.office365.com/caldav/v1/{email_arg}/Calendar"
+                hint = ctx.user_data["caldav_hint"]
+                msg = f"Password for {email_arg}:\n\n{hint}"
+                await update.message.reply_text(msg, parse_mode="Markdown")
+                ctx.user_data["connect_step"] = "caldav_password"
+            else:
+                await update.message.reply_text(
+                    "Which calendar provider do you use?\n\n"
+                    "🍎 *iCloud* — type: `icloud`\n"
+                    "📧 *Fastmail* — type: `fastmail`\n"
+                    "🏢 *Outlook* — type: `outlook`\n"
+                    "🌐 *Google* — type: `google`\n"
+                    "🌐 *Other* — paste your CalDAV server URL",
+                    parse_mode="Markdown"
+                )
+                ctx.user_data["connect_step"] = "caldav_provider"
 
         elif subcommand == "calendar":
             await update.message.reply_text(
