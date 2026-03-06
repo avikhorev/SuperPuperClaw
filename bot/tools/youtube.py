@@ -32,19 +32,14 @@ def _transcript_via_ytdlp(video_id: str) -> str:
     import urllib.request
     import yt_dlp
 
-    import shutil, tempfile
     url = f"https://www.youtube.com/watch?v={video_id}"
+    # Don't pass cookiefile to yt-dlp — it tries to write back on exit and
+    # the mounted file is not writable by the bot user. We use the cookie jar
+    # separately for fetching subtitle URLs below.
     ydl_opts = {"quiet": True, "no_warnings": True}
     p = _proxy_url()
     if p:
         ydl_opts["proxy"] = p
-    _tmp_cookies = None
-    if os.path.exists(_COOKIES_PATH):
-        # Copy to a writable temp file — yt-dlp may try to update the cookie jar
-        _tmp_cookies = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
-        shutil.copy2(_COOKIES_PATH, _tmp_cookies.name)
-        _tmp_cookies.close()
-        ydl_opts["cookiefile"] = _tmp_cookies.name
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -83,12 +78,6 @@ def _transcript_via_ytdlp(video_id: str) -> str:
                     except Exception:
                         continue
         return ""
-    finally:
-        if _tmp_cookies:
-            try:
-                os.unlink(_tmp_cookies.name)
-            except Exception:
-                pass
 
 
 def _proxy_url() -> str:
