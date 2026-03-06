@@ -25,6 +25,7 @@ def main():
     app.add_handler(CommandHandler("ban", handler.ban_command))
     app.add_handler(CommandHandler("status", handler.status_command))
     app.add_handler(CommandHandler("connect", handler.connect_command))
+    app.add_handler(CommandHandler("cancel", handler.cancel_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handler.message))
     app.add_handler(MessageHandler(filters.VOICE, handler.voice))
     app.add_handler(MessageHandler(filters.Document.PDF, handler.document))

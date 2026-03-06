@@ -40,6 +40,7 @@ def _build_help_text(config, storage) -> str:
     # --- Commands ---
     lines.append("\n*Commands:*")
     lines.append("/help — this message")
+    lines.append("/cancel — cancel any ongoing setup")
     lines.append("/status — show connected integrations")
     lines.append("/connect email you@example.com — link email")
     lines.append("/connect caldav you@example.com — link calendar (read/write)")
@@ -130,6 +131,10 @@ class BotHandler:
             return
         self.global_db.ban_user(int(ctx.args[0]))
         await update.message.reply_text(f"User {ctx.args[0]} banned.")
+
+    async def cancel_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        ctx.user_data.clear()
+        await update.message.reply_text("Cancelled.")
 
     async def status_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
@@ -274,6 +279,11 @@ class BotHandler:
 
         uid = update.effective_user.id
         text = (update.message.text or "").strip()
+
+        if text.lower() in ("cancel", "stop", "/cancel", "/stop"):
+            ctx.user_data.clear()
+            await update.message.reply_text("Cancelled.")
+            return True
 
         # ── Email flow ────────────────────────────────────────────────────────
         if step == "email_address":
