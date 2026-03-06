@@ -31,6 +31,8 @@ def get_news(topic: str = "") -> str:
                 if filter_topic and topic.lower() not in (title + summary).lower():
                     continue
                 items.append(f"**{title}**\n{entry.get('link', '')}")
-        return "\n\n".join(items[:12]) if items else "No news found."
+        if not items:
+            return "NEWS_FEEDS_EMPTY: No articles retrieved from any feed. Do NOT invent or summarize news from memory. Tell the user the feeds are currently unavailable and suggest checking a news site directly."
+        return "\n\n".join(items[:12])
     except Exception as e:
         return f"News unavailable: {e}"

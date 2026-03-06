@@ -24,7 +24,15 @@ class HeartbeatRunner:
         try:
             result = await runner.run(HEARTBEAT_PROMPT)
             if result and result.strip():
-                await self.bot.send_message(chat_id=self.telegram_id, text=result)
+                # Don't send if Claude just says there's nothing to report
+                lower = result.strip().lower()
+                silence_phrases = [
+                    "nothing to report", "no saved profile", "nothing worth reporting",
+                    "nothing to send", "no heartbeat", "no active context",
+                    "there is nothing", "nothing defined", "no instructions",
+                ]
+                if not any(p in lower for p in silence_phrases):
+                    await self.bot.send_message(chat_id=self.telegram_id, text=result)
         except Exception as e:
             logger.error("Heartbeat failed for user %s: %s", self.telegram_id, e)
 

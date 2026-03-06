@@ -196,6 +196,19 @@ class BotHandler:
         ctx.user_data.clear()
         await update.message.reply_text("Cancelled.")
 
+    async def reminders_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        uid = update.effective_user.id
+        user = self.global_db.get_user(uid)
+        if not user or user["status"] != "approved":
+            return
+        storage = self._get_storage(uid)
+        jobs = storage.db.list_active_jobs()
+        if not jobs:
+            await update.message.reply_text("No active reminders.")
+        else:
+            lines = [f"[{j['id']}] {j['description']} ({j['cron']})" for j in jobs]
+            await update.message.reply_text("Active reminders:\n" + "\n".join(lines))
+
     async def status_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
         user = self.global_db.get_user(uid)
