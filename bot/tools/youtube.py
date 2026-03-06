@@ -12,47 +12,48 @@ _COOKIES_PATH = "/app/youtube_cookies.txt"
 
 
 def _transcript_via_ytdlp(video_id: str) -> str:
-    """Fetch transcript using yt-dlp (better at bypassing IP blocks)."""
+    """Fetch transcript using yt-dlp with cookies."""
+    import tempfile
     import yt_dlp
-    ydl_opts = {
-        "skip_download": True,
-        "writesubtitles": True,
-        "writeautomaticsub": True,
-        "subtitleslangs": ["en", "ru", "all"],
-        "quiet": True,
-        "no_warnings": True,
-    }
-    if os.path.exists(_COOKIES_PATH):
-        ydl_opts["cookiefile"] = _COOKIES_PATH
+
     url = f"https://www.youtube.com/watch?v={video_id}"
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ydl_opts = {
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["en", "ru"],
+            "subtitlesformat": "vtt",
+            "outtmpl": os.path.join(tmpdir, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+        }
+        if os.path.exists(_COOKIES_PATH):
+            ydl_opts["cookiefile"] = _COOKIES_PATH
 
-    # Try to get subtitle text from info dict
-    subtitles = info.get("subtitles") or {}
-    auto_subs = info.get("automatic_captions") or {}
-    all_subs = {**auto_subs, **subtitles}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-    for lang in ["en", "ru"] + list(all_subs.keys()):
-        if lang not in all_subs:
-            continue
-        formats = all_subs[lang]
-        # Prefer json3 or srv1 formats which have clean text
-        for fmt in formats:
-            if fmt.get("ext") in ("json3", "srv1", "ttml", "vtt"):
-                import urllib.request
-                try:
-                    with urllib.request.urlopen(fmt["url"], timeout=10) as r:
-                        content = r.read().decode("utf-8")
-                    # Strip XML/VTT tags
-                    text = re.sub(r"<[^>]+>", " ", content)
-                    text = re.sub(r"\s+", " ", text).strip()
-                    # Remove timecode lines from VTT
-                    lines = [l for l in text.splitlines()
-                             if not re.match(r"^\d{2}:\d{2}", l) and l.strip()]
-                    return " ".join(lines)[:8000]
-                except Exception:
-                    continue
+        # Find the downloaded .vtt file
+        for fname in os.listdir(tmpdir):
+            if fname.endswith(".vtt"):
+                with open(os.path.join(tmpdir, fname), encoding="utf-8") as f:
+                    content = f.read()
+                # Strip VTT headers, timecodes, and tags
+                lines = []
+                for line in content.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("WEBVTT") or "-->" in line:
+                        continue
+                    if re.match(r"^\d+$", line):
+                        continue
+                    line = re.sub(r"<[^>]+>", "", line)
+                    if line:
+                        lines.append(line)
+                # Deduplicate consecutive identical lines
+                deduped = [lines[i] for i in range(len(lines))
+                           if i == 0 or lines[i] != lines[i-1]]
+                return " ".join(deduped)[:8000]
     return ""
 
 
