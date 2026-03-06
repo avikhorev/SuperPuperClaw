@@ -1,5 +1,5 @@
 import logging
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,14 @@ class HeartbeatRunner:
             logger.error("Heartbeat failed for user %s: %s", self.telegram_id, e)
 
 
-def schedule_heartbeat(scheduler, telegram_id: int, storage, bot, tools_factory, hour: int = 8):
+def schedule_heartbeat(scheduler, telegram_id: int, storage, bot, tools_factory, interval_minutes: int = 30):
     runner = HeartbeatRunner(
         telegram_id=telegram_id,
         storage=storage,
         bot=bot,
         tools_factory=tools_factory,
     )
-    trigger = CronTrigger(hour=hour, minute=0)
+    trigger = IntervalTrigger(minutes=interval_minutes)
     scheduler.scheduler.add_job(
         runner.run,
         trigger=trigger,
