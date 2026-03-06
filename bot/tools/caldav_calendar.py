@@ -1,4 +1,4 @@
-"""CalDAV calendar tools — read/write for iCloud, Fastmail, Nextcloud, etc."""
+"""CalDAV calendar tools — read/write for iCloud, Fastmail, Nextcloud, Google, etc."""
 from datetime import datetime, timezone, timedelta
 import uuid
 
@@ -18,13 +18,37 @@ def _principal_calendar(cfg: dict):
     calendars = principal.calendars()
     if not calendars:
         raise ValueError("No calendars found on this CalDAV server.")
-    # Prefer calendar matching saved name, otherwise first
     name = cfg.get("calendar_name")
     if name:
         for cal in calendars:
-            if cal.name == name:
+            try:
+                cal_name = cal.get_display_name()
+            except Exception:
+                cal_name = getattr(cal, "name", "")
+            if cal_name == name:
                 return cal
     return calendars[0]
+
+
+def _get_vevent(ev):
+    """Return the VEVENT icalendar component from a caldav Event object."""
+    comp = ev.icalendar_component
+    # icalendar_component may be the VEVENT directly or a VCALENDAR wrapper
+    if comp.name == "VEVENT":
+        return comp
+    for sub in comp.walk("VEVENT"):
+        return sub
+    return None
+
+
+def _dt_to_aware(dt):
+    """Ensure a datetime is timezone-aware."""
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+    # date object — convert to datetime
+    return datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
 
 
 def list_caldav_events(days_ahead: int = 7, storage=None) -> str:
@@ -39,19 +63,19 @@ def list_caldav_events(days_ahead: int = 7, storage=None) -> str:
         events = cal.search(start=now, end=end, event=True, expand=True)
         if not events:
             return f"No events in the next {days_ahead} days."
-        lines = []
-        for ev in sorted(events, key=lambda e: e.vobject_instance.vevent.dtstart.value):
-            vevent = ev.vobject_instance.vevent
-            summary = str(getattr(vevent, "summary", type("", (), {"value": "(no title)"})()).value)
-            start = vevent.dtstart.value
-            if not hasattr(start, "tzinfo"):
-                from datetime import date
-                start = datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
-            elif start.tzinfo is None:
-                start = start.replace(tzinfo=timezone.utc)
-            uid_val = str(getattr(vevent, "uid", type("", (), {"value": ""})()).value)
-            lines.append(f"• [uid:{uid_val[:8]}] {summary} — {start.strftime('%a %b %d, %H:%M')}")
-        return "\n".join(lines)
+        items = []
+        for ev in events:
+            vevent = _get_vevent(ev)
+            if vevent is None:
+                continue
+            summary = str(vevent.get("SUMMARY", "(no title)"))
+            start = _dt_to_aware(vevent.get("DTSTART").dt)
+            uid_val = str(vevent.get("UID", ""))
+            items.append((start, uid_val, summary))
+        items.sort(key=lambda x: x[0])
+        lines = [f"• [uid:{uid[:8]}] {summary} — {start.strftime('%a %b %d, %H:%M')}"
+                 for start, uid, summary in items]
+        return "\n".join(lines) if lines else f"No events in the next {days_ahead} days."
     except Exception as e:
         return f"CalDAV unavailable: {e}"
 
@@ -93,16 +117,17 @@ def delete_caldav_event(uid_prefix: str, storage=None) -> str:
     if not cfg:
         return "CalDAV calendar not connected. Use /connect caldav."
     try:
-        from datetime import date
         cal = _principal_calendar(cfg)
         now = datetime.now(timezone.utc)
         events = cal.search(start=now - timedelta(days=365), end=now + timedelta(days=365), event=True)
         for ev in events:
-            vevent = ev.vobject_instance.vevent
-            uid_val = str(getattr(vevent, "uid", type("", (), {"value": ""})()).value)
+            vevent = _get_vevent(ev)
+            if vevent is None:
+                continue
+            uid_val = str(vevent.get("UID", ""))
             if uid_val.startswith(uid_prefix):
                 ev.delete()
-                return f"Event deleted."
+                return "Event deleted."
         return f"No event found with uid starting with '{uid_prefix}'."
     except Exception as e:
         return f"Could not delete event: {e}"
@@ -117,25 +142,30 @@ def update_caldav_event(uid_prefix: str, title: str = "", start: str = "", end: 
     if not cfg:
         return "CalDAV calendar not connected. Use /connect caldav."
     try:
+        from icalendar import Calendar, Event
         cal = _principal_calendar(cfg)
         now = datetime.now(timezone.utc)
         events = cal.search(start=now - timedelta(days=365), end=now + timedelta(days=365), event=True)
         for ev in events:
-            vevent = ev.vobject_instance.vevent
-            uid_val = str(getattr(vevent, "uid", type("", (), {"value": ""})()).value)
+            vevent = _get_vevent(ev)
+            if vevent is None:
+                continue
+            uid_val = str(vevent.get("UID", ""))
             if uid_val.startswith(uid_prefix):
-                if title:
-                    vevent.summary.value = title
-                if start:
-                    vevent.dtstart.value = datetime.fromisoformat(start)
-                if end:
-                    vevent.dtend.value = datetime.fromisoformat(end)
-                if description:
-                    if hasattr(vevent, "description"):
-                        vevent.description.value = description
-                    else:
-                        from vobject.icalendar import RecurringComponent
-                        vevent.add("description").value = description
+                # Rebuild the ical with updated fields
+                cal_obj = Calendar()
+                cal_obj.add("prodid", "-//Bot//EN")
+                cal_obj.add("version", "2.0")
+                new_event = Event()
+                new_event.add("uid", uid_val)
+                new_event.add("summary", title if title else str(vevent.get("SUMMARY", "")))
+                new_event.add("dtstart", datetime.fromisoformat(start) if start else vevent.get("DTSTART").dt)
+                new_event.add("dtend", datetime.fromisoformat(end) if end else vevent.get("DTEND").dt)
+                desc = description if description else str(vevent.get("DESCRIPTION", ""))
+                if desc:
+                    new_event.add("description", desc)
+                cal_obj.add_component(new_event)
+                ev.data = cal_obj.to_ical()
                 ev.save()
                 return "Event updated."
         return f"No event found with uid starting with '{uid_prefix}'."
