@@ -6,7 +6,7 @@ services:
     volumes:
       - ./data:/data
       - claude_auth:/home/botuser/.claude
-      - ./youtube_cookies.txt:/app/youtube_cookies.txt:ro
+      - ./youtube_cookies.txt:/app/youtube_cookies.txt
     environment:
       - DATA_DIR=/data
 
