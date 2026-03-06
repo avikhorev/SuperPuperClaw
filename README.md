@@ -4,12 +4,16 @@ A self-hosted, multi-user personal AI assistant for Telegram. Users chat natural
 
 ## Features
 
-- **AI agent** powered by Claude (Anthropic API) with tool use
-- **Per-user memory** — Claude maintains a `memory.md` of facts about each user
-- **Conversation history** — last N messages carried as context
+- **AI agent** powered by Claude (Anthropic API or Claude subscription via CLI) with tool use
+- **Structured memory** — per-user `profile.md`, `context.md`, and `agent.md` (behavior rules)
+- **Daily session logs** — every exchange appended to `logs/YYYY-MM-DD.md`; searchable via `search_logs` tool
+- **Skills registry** — save and reuse named instruction sets (`save_skill`, `read_skill`, `list_skills`)
+- **Heartbeat** — configurable daily proactive digest (edit via `update_heartbeat`)
+- **Reminders** — set recurring reminders in natural language (`set_reminder`, `list_reminders`, `cancel_reminder`)
+- **Conversation history** — last 20 messages carried as context
 - **Voice messages** — transcribed locally via faster-whisper
 - **PDF processing** — extract and summarise PDF content
-- **Reminders** — set recurring or one-off reminders in natural language
+- **QR codes** — generated and sent as images
 
 ### Built-in tools (no API keys required)
 
@@ -23,20 +27,23 @@ A self-hosted, multi-user personal AI assistant for Telegram. Users chat natural
 | News digest | RSS (feedparser) |
 | Weather | Open-Meteo |
 | Currency conversion | frankfurter.app |
-| QR code generator | qrcode (local) |
+| QR code generator | api.qrserver.com (sent as image) |
 | URL shortener | tinyurl.com |
+| Log search | full-text search over daily logs |
+| Skills | save/read/list named instruction files |
+| Reminders | APScheduler cron jobs, persisted in SQLite |
 
 ### Optional integrations
 
-- **Google** — Gmail, Calendar, Drive (one shared OAuth app, per-user auth)
 - **Email (IMAP/SMTP)** — works with Gmail, Outlook, Yahoo, iCloud, Fastmail, and others; bot auto-detects server settings from email address
-- **Calendar (ICS)** — read any public or private ICS URL (Google Calendar, Apple Calendar, Outlook, etc.)
+- **Calendar (CalDAV)** — read/write via CalDAV (iCloud, Fastmail, Outlook, Google)
+- **Calendar (ICS)** — read-only via any public or private ICS URL
 
 ## Requirements
 
 - Docker + Docker Compose
 - A [Telegram bot token](https://t.me/BotFather)
-- An [Anthropic API key](https://console.anthropic.com/)
+- An [Anthropic API key](https://console.anthropic.com/) **or** a Claude subscription (via `claude` CLI)
 - A Linux VPS (2 CPU / 4 GB RAM comfortable for ~50–100 active users)
 
 ## Quick install
@@ -72,7 +79,7 @@ python setup.py
 docker compose up -d
 ```
 
-`setup.py` will ask for your Telegram token and Anthropic key, optionally configure Google OAuth, detect your Telegram ID as the admin, and write `.env`.
+`setup.py` will ask for your Telegram token and Anthropic key, detect your Telegram ID as the admin, and write `.env`.
 
 ## Admin CLI
 
@@ -91,44 +98,89 @@ Menu options:
 ## User commands
 
 ```
-/start          — register (first user becomes admin)
-/help           — list features and available tools
-/connect google — link Google account (Gmail, Calendar, Drive)
-/connect email  — link email via IMAP (Gmail, Outlook, Yahoo, iCloud, …)
-/connect calendar — link a calendar via ICS URL
-/status         — show connected integrations
+/start            — register (first user becomes admin)
+/help             — list features and available tools
+/connect email    — link email via IMAP (Gmail, Outlook, Yahoo, iCloud, …)
+/connect caldav   — link calendar read/write (iCloud, Fastmail, Outlook, Google)
+/connect calendar — link calendar read-only via ICS URL
+/cancel           — cancel any ongoing setup flow
+/status           — show connected integrations
 ```
 
 All other interactions are natural language.
 
-## Google integration (optional)
+## Memory system
 
-1. Create a Google Cloud project and enable Gmail API, Calendar API, and Drive API
-2. Create OAuth 2.0 credentials (Desktop app / installed type), download the client secret
-3. Enter `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` (or during setup)
-4. Users connect via `/connect google` — bot sends an auth URL, user pastes back the redirect URL
+Each user has memory files the agent reads and updates automatically:
+
+| File | Tool | Purpose |
+|---|---|---|
+| `memory/profile.md` | `update_profile` | Stable facts: name, timezone, preferences |
+| `memory/context.md` | `update_context` | Working state: current projects, ongoing tasks |
+| `memory/agent.md` | _(read-only)_ | Behavior rules: tone, response style |
+| `memory/heartbeat.md` | `update_heartbeat` | Daily proactive digest instructions |
+
+Session logs are written to `logs/YYYY-MM-DD.md` and searchable via `search_logs`.
+
+Skills are stored in `skills/<name>.md` and managed via `save_skill` / `read_skill` / `list_skills`.
 
 ## Project structure
 
 ```
 bot/
-├── main.py          # entry point
-├── handler.py       # Telegram handlers
-├── agent.py         # Claude tool-use loop
-├── db.py            # GlobalDB + UserDB (SQLite)
-├── storage.py       # per-user file storage
-├── scheduler.py     # APScheduler reminders
-├── oauth.py         # Google OAuth flow
-├── imap_providers.py # IMAP/SMTP server auto-detection
+├── main.py             # entry point, scheduler setup
+├── handler.py          # Telegram command and message handlers
+├── agent.py            # Claude agent loop (tool-use via claude_agent_sdk)
+├── db.py               # GlobalDB + UserDB (SQLite)
+├── storage.py          # per-user file storage (memory, logs, skills)
+├── scheduler.py        # APScheduler reminders + cron parsing
+├── heartbeat.py        # daily proactive digest runner
+├── imap_providers.py   # IMAP/SMTP auto-detection by email domain
 ├── logger.py
-└── tools/           # all tool implementations
-data/                # Docker volume (persisted)
+└── tools/
+    ├── registry.py       # assembles tool list per user
+    ├── memory_tool.py    # update_profile, update_context
+    ├── heartbeat_tool.py # update_heartbeat
+    ├── logs_tool.py      # search_logs
+    ├── skills_tool.py    # save_skill, read_skill, list_skills
+    ├── reminders.py      # set_reminder, list_reminders, cancel_reminder
+    ├── imap_email.py
+    ├── caldav_calendar.py
+    ├── ics_calendar.py
+    ├── web_search.py
+    ├── weather.py
+    ├── qrcode_tool.py    # returns photo URL → sent as image by handler
+    └── ...
+data/                   # Docker volume (persisted)
 ├── global.db
 ├── logs/
 └── users/<telegram_id>/
-    ├── memory.md
     ├── conversations.db
-    └── oauth_tokens.json
+    ├── memory/
+    │   ├── profile.md
+    │   ├── context.md
+    │   ├── agent.md
+    │   └── heartbeat.md
+    ├── logs/
+    │   └── YYYY-MM-DD.md
+    └── skills/
+        └── <name>.md
+```
+
+## Testing
+
+```bash
+# Unit + integration tests (no credentials needed)
+pytest tests/ --ignore=tests/e2e --ignore=tests/live -v
+
+# Live Claude tests (requires API key or claude CLI)
+pytest tests/live/ -v
+
+# Full-stack tests (fake Telegram + real Claude)
+pytest tests/e2e/test_e2e_full_stack.py -v
+
+# Telegram test-server E2E (requires test DC credentials from my.telegram.org)
+TG_TEST_API_ID=... TG_TEST_API_HASH=... bash scripts/run_testserver_e2e.sh
 ```
 
 ## License
