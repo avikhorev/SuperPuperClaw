@@ -25,6 +25,9 @@ def _ddgs_html_search(query: str, max_results: int) -> list:
     for i, (title, url) in enumerate(zip(titles, urls)):
         if not title or not url.startswith("http"):
             continue
+        # Skip DDG ad redirect URLs
+        if "duckduckgo.com" in url:
+            continue
         body = snippets[i] if i < len(snippets) else ""
         results.append({"title": title, "href": url, "body": body})
         if len(results) >= max_results:
