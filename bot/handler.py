@@ -750,9 +750,11 @@ class BotHandler:
             from bot.tools.pdf_tool import extract_pdf_text
             text = extract_pdf_text(pdf_bytes)
             storage = self._get_storage(uid)
-            runner = self._get_runner(storage)
+            runner = self._get_runner(storage, telegram_id=uid)
+            caption = (update.message.caption or "").strip()
+            prompt = f"{caption}\n\n{text}" if caption else f"Summarize this document:\n\n{text}"
             try:
-                reply = await runner.run(f"Summarize this document:\n\n{text}")
+                reply = await runner.run(prompt)
             except Exception as e:
                 logger.exception("Agent error (PDF) for user %s", uid)
                 reply = "Could not summarize the PDF."
