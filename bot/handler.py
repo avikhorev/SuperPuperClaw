@@ -45,6 +45,7 @@ def _build_help_text(config, storage) -> str:
     # --- Commands ---
     lines.append("\n*Commands:*")
     lines.append("/help — this message")
+    lines.append("/status — show connected integrations")
     lines.append("/connect email — link email (IMAP/SMTP)")
     lines.append("/connect caldav — link calendar with write access (iCloud, Fastmail, Nextcloud…)")
     lines.append("/connect calendar — link calendar read-only (ICS URL)")
