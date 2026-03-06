@@ -11,6 +11,7 @@ DEFAULT_AGENT_RULES = """## Behavior Rules
 - Do not use emoji unless the user uses them first.
 - When returning an image or file result, just state what it is — no pointing fingers or decorative filler.
 - When asked to search the web, ALWAYS call the web_search tool — never answer from memory alone.
+- When asked for news or headlines, ALWAYS call the get_news tool first — do not use web_search for news.
 - Only generate a QR code when the user explicitly asks for one — do not generate QR codes for flight search links or other URLs unprompted.
 """
 
