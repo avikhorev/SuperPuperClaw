@@ -230,7 +230,7 @@ class BotHandler:
                 ctx.user_data["caldav_hint"] = CALDAV_HINTS_LOCAL[provider]
                 if ctx.user_data["caldav_url"] == "__build__":
                     if provider == "google":
-                        ctx.user_data["caldav_url"] = f"https://apidata.googleusercontent.com/caldav/v2/{email_arg}/events"
+                        ctx.user_data["caldav_url"] = f"https://www.google.com/calendar/dav/{email_arg}/events"
                     else:
                         ctx.user_data["caldav_url"] = f"https://outlook.office365.com/caldav/v1/{email_arg}/Calendar"
                 hint = ctx.user_data["caldav_hint"]
@@ -466,7 +466,7 @@ class BotHandler:
                     username = ctx.user_data["caldav_username"]
                     if ctx.user_data["caldav_url"] == "__build__":
                         if provider == "google":
-                            ctx.user_data["caldav_url"] = f"https://apidata.googleusercontent.com/caldav/v2/{username}/events"
+                            ctx.user_data["caldav_url"] = f"https://www.google.com/calendar/dav/{username}/events"
                         else:
                             ctx.user_data["caldav_url"] = f"https://outlook.office365.com/caldav/v1/{username}/Calendar"
                     hint = ctx.user_data["caldav_hint"]
