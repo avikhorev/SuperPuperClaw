@@ -8,3 +8,7 @@ data/
 dist/
 build/
 .DS_Store
+files/
+*.session
+*.session-journal
+youtube_cookies.txt
