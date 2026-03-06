@@ -9,6 +9,7 @@ from bot.tools.currency import convert_currency
 from bot.tools.url_shortener import shorten_url
 from bot.tools.qrcode_tool import generate_qr
 from bot.tools.pdf_tool import extract_pdf_text
+from bot.tools.flights import search_flights
 
 
 def build_tool_registry(user_storage, scheduler=None, telegram_id=None, has_google: bool = False) -> list:
@@ -24,6 +25,7 @@ def build_tool_registry(user_storage, scheduler=None, telegram_id=None, has_goog
         shorten_url,
         generate_qr,
         extract_pdf_text,
+        search_flights,
     ]
 
     if user_storage is not None:
