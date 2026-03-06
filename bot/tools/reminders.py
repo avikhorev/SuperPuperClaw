@@ -1,11 +1,20 @@
 def build_reminder_tools(scheduler, user_db, telegram_id):
-    def set_reminder(schedule: str, description: str) -> str:
-        """Set a recurring reminder. 'schedule' is natural language like 'every Monday at 9am' or 'every day at 8am'."""
+    def set_reminder(description: str, schedule: str) -> str:
+        """Set a reminder.
+
+        Args:
+            description: What to remind about, e.g. 'drink water', 'call dentist'
+            schedule: When to remind. Examples:
+                - Relative: 'in 5 minutes', 'in 2 hours'
+                - Daily: 'every day at 9am', 'every day at 14:30'
+                - Weekly: 'every Monday at 9am', 'every Friday at 17:00'
+        """
         from bot.scheduler import parse_reminder_request
-        parsed = parse_reminder_request(schedule)
+        # Pass full combined text so relative times like 'in N minutes' are parsed correctly
+        parsed = parse_reminder_request(f"{description} {schedule}")
         job_id = user_db.add_job(parsed["cron"], description)
         scheduler.add_job(telegram_id, job_id, parsed["cron"], description, db_path=user_db.path)
-        return f"Reminder set: '{description}' — schedule: '{parsed['cron']}' (id: {job_id})"
+        return f"Reminder set: '{description}' — cron: '{parsed['cron']}' (id: {job_id})"
 
     def list_reminders() -> str:
         """List all active reminders for this user."""
