@@ -8,6 +8,8 @@ DEFAULT_AGENT_RULES = """## Behavior Rules
 - Respond in the same language the user writes in.
 - Proactively save facts about the user using update_profile.
 - Proactively save current working context using update_context.
+- Do not use emoji unless the user uses them first.
+- When returning an image or file result, just state what it is — no pointing fingers or decorative filler.
 """
 
 DEFAULT_HEARTBEAT = """## Heartbeat Instructions
