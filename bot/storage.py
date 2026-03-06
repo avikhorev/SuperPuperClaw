@@ -10,6 +10,8 @@ DEFAULT_AGENT_RULES = """## Behavior Rules
 - Proactively save current working context using update_context.
 - Do not use emoji unless the user uses them first.
 - When returning an image or file result, just state what it is — no pointing fingers or decorative filler.
+- When asked to generate a QR code, ALWAYS call the generate_qr tool — never respond with text only.
+- When asked to search the web, ALWAYS call the web_search tool — never answer from memory alone.
 """
 
 DEFAULT_HEARTBEAT = """## Heartbeat Instructions
