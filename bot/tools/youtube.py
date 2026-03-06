@@ -11,49 +11,63 @@ def _extract_video_id(url: str):
 _COOKIES_PATH = "/app/youtube_cookies.txt"
 
 
+def _parse_vtt(content: str) -> str:
+    lines = []
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith("WEBVTT") or "-->" in line:
+            continue
+        if re.match(r"^\d+$", line):
+            continue
+        line = re.sub(r"<[^>]+>", "", line)
+        if line:
+            lines.append(line)
+    deduped = [lines[i] for i in range(len(lines)) if i == 0 or lines[i] != lines[i-1]]
+    return " ".join(deduped)
+
+
 def _transcript_via_ytdlp(video_id: str) -> str:
-    """Fetch transcript using yt-dlp with cookies."""
-    import tempfile
+    """Fetch transcript using yt-dlp info extraction + direct subtitle URL fetch."""
+    import http.cookiejar
+    import urllib.request
     import yt_dlp
 
     url = f"https://www.youtube.com/watch?v={video_id}"
-    with tempfile.TemporaryDirectory() as tmpdir:
-        ydl_opts = {
-            "skip_download": True,
-            "writesubtitles": True,
-            "writeautomaticsub": True,
-            "subtitleslangs": ["en", "ru"],
-            "subtitlesformat": "vtt",
-            "outtmpl": os.path.join(tmpdir, "%(id)s.%(ext)s"),
-            "quiet": True,
-            "no_warnings": True,
-        }
-        if os.path.exists(_COOKIES_PATH):
-            ydl_opts["cookiefile"] = _COOKIES_PATH
+    ydl_opts = {"quiet": True, "no_warnings": True}
+    if os.path.exists(_COOKIES_PATH):
+        ydl_opts["cookiefile"] = _COOKIES_PATH
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
 
-        # Find the downloaded .vtt file
-        for fname in os.listdir(tmpdir):
-            if fname.endswith(".vtt"):
-                with open(os.path.join(tmpdir, fname), encoding="utf-8") as f:
-                    content = f.read()
-                # Strip VTT headers, timecodes, and tags
-                lines = []
-                for line in content.splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("WEBVTT") or "-->" in line:
-                        continue
-                    if re.match(r"^\d+$", line):
-                        continue
-                    line = re.sub(r"<[^>]+>", "", line)
-                    if line:
-                        lines.append(line)
-                # Deduplicate consecutive identical lines
-                deduped = [lines[i] for i in range(len(lines))
-                           if i == 0 or lines[i] != lines[i-1]]
-                return " ".join(deduped)[:8000]
+    subtitles = info.get("subtitles") or {}
+    auto_subs = info.get("automatic_captions") or {}
+    # Prefer manual subtitles, fall back to auto
+    all_subs = {**auto_subs, **subtitles}
+
+    # Build cookie jar for fetching subtitle URLs
+    jar = http.cookiejar.MozillaCookieJar()
+    if os.path.exists(_COOKIES_PATH):
+        try:
+            jar.load(_COOKIES_PATH, ignore_discard=True, ignore_expires=True)
+        except Exception:
+            pass
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+    for lang in ["en", "ru"] + list(all_subs.keys()):
+        if lang not in all_subs:
+            continue
+        for fmt in all_subs[lang]:
+            if fmt.get("ext") in ("vtt", "srv1", "ttml"):
+                try:
+                    req = urllib.request.Request(fmt["url"], headers={"User-Agent": "Mozilla/5.0"})
+                    with opener.open(req, timeout=10) as r:
+                        content = r.read().decode("utf-8")
+                    text = _parse_vtt(content)
+                    if text:
+                        return text[:8000]
+                except Exception:
+                    continue
     return ""
 
 
