@@ -404,14 +404,18 @@ class BotHandler:
         CALDAV_URLS = {
             "icloud": "https://caldav.icloud.com",
             "fastmail": "https://caldav.fastmail.com",
-            "outlook": "https://outlook.office365.com/caldav/v1",
+            "outlook": None,  # URL built from username after it's entered
         }
 
         if step == "caldav_provider":
-            known = CALDAV_URLS.get(text.lower().strip())
-            if known:
-                ctx.user_data["caldav_url"] = known
-                provider = text.lower().strip()
+            provider = text.lower().strip()
+            known = CALDAV_URLS.get(provider)
+            if provider in CALDAV_URLS:
+                if known:
+                    ctx.user_data["caldav_url"] = known
+                else:
+                    ctx.user_data["caldav_url"] = "__build__"  # built after username
+                ctx.user_data["caldav_provider"] = provider
                 if provider == "icloud":
                     hint = "Use an *app-specific password* — not your Apple ID password.\nGenerate one at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords."
                 elif provider == "outlook":
@@ -447,6 +451,8 @@ class BotHandler:
 
         if step == "caldav_username":
             ctx.user_data["caldav_username"] = text
+            if ctx.user_data.get("caldav_url") == "__build__":
+                ctx.user_data["caldav_url"] = f"https://outlook.office365.com/caldav/v1/{text}/Calendar"
             hint = ctx.user_data.get("caldav_hint", "")
             msg = "Your password:"
             if hint:
@@ -469,7 +475,7 @@ class BotHandler:
                     raise ValueError("No calendars found.")
                 cal_names = [c.name for c in calendars]
             except Exception as e:
-                for k in ("connect_step", "caldav_url", "caldav_username", "caldav_hint"):
+                for k in ("connect_step", "caldav_url", "caldav_username", "caldav_hint", "caldav_provider"):
                     ctx.user_data.pop(k, None)
                 await update.message.reply_text(
                     f"Could not connect: {e}\n\nPlease check your URL and credentials, then try /connect caldav again."
