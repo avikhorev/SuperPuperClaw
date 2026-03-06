@@ -18,6 +18,7 @@ import re as _re
 
 _PHOTO_FILE_TOKEN = _re.compile(r"PHOTO_FILE:(\S+)")
 _PHOTO_URL_TOKEN  = _re.compile(r"PHOTO_URL:(\S+)")
+_MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
 
 def _extract_photos(text: str):
@@ -27,7 +28,9 @@ def _extract_photos(text: str):
         photos.append(("file", path))
     for url in _PHOTO_URL_TOKEN.findall(text):
         photos.append(("url", url))
-    caption = _PHOTO_FILE_TOKEN.sub("", _PHOTO_URL_TOKEN.sub("", text)).strip()
+    for url in _MARKDOWN_IMAGE.findall(text):
+        photos.append(("url", url))
+    caption = _PHOTO_FILE_TOKEN.sub("", _PHOTO_URL_TOKEN.sub("", _MARKDOWN_IMAGE.sub("", text))).strip()
     return photos, caption
 
 
