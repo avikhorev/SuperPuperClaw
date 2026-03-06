@@ -48,8 +48,8 @@ async def _send_reply(message, text: str):
                 await message.reply_photo(ref, caption=cap)
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
-    if not photos or caption:
-        await message.reply_text(caption or text)
+    if not photos:
+        await message.reply_text(text)
 
 
 async def _send_reply_to_chat(bot, chat_id: int, text: str):
@@ -66,8 +66,8 @@ async def _send_reply_to_chat(bot, chat_id: int, text: str):
                 await bot.send_photo(chat_id=chat_id, photo=ref, caption=cap)
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
-    if not photos or caption:
-        await bot.send_message(chat_id=chat_id, text=caption or text)
+    if not photos:
+        await bot.send_message(chat_id=chat_id, text=text)
 
 
 def _build_help_text(config, storage) -> str:
