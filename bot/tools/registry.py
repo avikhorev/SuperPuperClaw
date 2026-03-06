@@ -11,7 +11,7 @@ from bot.tools.qrcode_tool import generate_qr
 from bot.tools.pdf_tool import extract_pdf_text
 
 
-def build_tool_registry(user_storage, has_google: bool = False) -> list:
+def build_tool_registry(user_storage, scheduler=None, telegram_id=None, has_google: bool = False) -> list:
     tools = [
         web_search,
         read_webpage,
@@ -43,5 +43,17 @@ def build_tool_registry(user_storage, has_google: bool = False) -> list:
                 update_caldav_event, delete_caldav_event,
             )
             tools += [list_caldav_events, create_caldav_event, update_caldav_event, delete_caldav_event]
+
+    if scheduler is not None and telegram_id is not None:
+        from bot.tools.reminders import build_reminder_tools
+        tools += build_reminder_tools(scheduler, user_storage.db, telegram_id)
+
+    from bot.tools.logs_tool import build_logs_tools
+    if user_storage is not None:
+        tools += build_logs_tools(user_storage)
+
+    if user_storage is not None:
+        from bot.tools.skills_tool import build_skills_tools
+        tools += build_skills_tools(user_storage)
 
     return tools

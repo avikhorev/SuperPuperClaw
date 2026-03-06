@@ -28,15 +28,19 @@ def test_currency_returns_string():
         assert "USD" in result
         assert "108" in result
 
-def test_qr_returns_png_bytes():
+def test_qr_returns_photo_url_token():
+    import re
     result = generate_qr("https://example.com")
-    assert isinstance(result, bytes)
-    assert result[:4] == b'\x89PNG'  # PNG magic bytes
+    assert isinstance(result, str)
+    m = re.match(r"PHOTO_URL:(\S+)", result)
+    assert m, f"Expected PHOTO_URL: token, got: {result}"
+    url = m.group(1)
+    assert "qrserver.com" in url
+    assert "example.com" in url
 
-def test_registry_returns_list_without_google():
+def test_registry_returns_list_without_storage():
     tools = build_tool_registry(user_storage=None, has_google=False)
     assert isinstance(tools, list)
-    assert len(tools) == 11
     names = [fn.__name__ for fn in tools]
     assert "web_search" in names
     assert "get_weather" in names

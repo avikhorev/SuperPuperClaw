@@ -67,7 +67,7 @@ class ReminderScheduler:
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
 
-    def add_job(self, telegram_id: int, job_id: int, cron: str, description: str):
+    def add_job(self, telegram_id: int, job_id: int, cron: str, description: str, db_path: str = None):
         parts = cron.split()
         trigger = CronTrigger(
             minute=parts[0],
@@ -79,7 +79,7 @@ class ReminderScheduler:
         self.scheduler.add_job(
             self._send_reminder,
             trigger=trigger,
-            args=[telegram_id, job_id, description],
+            args=[telegram_id, job_id, description, db_path],
             id=f"job_{job_id}",
             replace_existing=True,
         )
@@ -90,10 +90,14 @@ class ReminderScheduler:
         except Exception:
             pass
 
-    async def _send_reminder(self, telegram_id: int, job_id: int, description: str):
+    async def _send_reminder(self, telegram_id: int, job_id: int, description: str, db_path: str = None):
         try:
             await self.bot.send_message(chat_id=telegram_id, text=f"⏰ Reminder: {description}")
         except Exception as e:
             logger.error("Reminder delivery failed for job %s (user %s): %s", job_id, telegram_id, e)
-            # Failure tracking is handled by UserDB.increment_job_fail
-            # The caller (main loop) is responsible for calling increment_job_fail
+            if db_path:
+                try:
+                    from bot.db import UserDB
+                    UserDB(db_path).increment_job_fail(job_id)
+                except Exception:
+                    pass

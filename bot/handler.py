@@ -10,9 +10,62 @@ from bot.db import GlobalDB
 from bot.storage import UserStorage
 from bot.agent import AgentRunner
 from bot.tools.registry import build_tool_registry
-from bot.tools.memory_tool import update_memory
+from bot.tools.memory_tool import update_profile, update_context
 
 logger = logging.getLogger(__name__)
+
+import re as _re
+
+_PHOTO_FILE_TOKEN = _re.compile(r"PHOTO_FILE:(\S+)")
+_PHOTO_URL_TOKEN  = _re.compile(r"PHOTO_URL:(\S+)")
+
+
+def _extract_photos(text: str):
+    """Return (list_of_photo_refs, cleaned_caption). photo_ref is a path or URL."""
+    photos = []
+    for path in _PHOTO_FILE_TOKEN.findall(text):
+        photos.append(("file", path))
+    for url in _PHOTO_URL_TOKEN.findall(text):
+        photos.append(("url", url))
+    caption = _PHOTO_FILE_TOKEN.sub("", _PHOTO_URL_TOKEN.sub("", text)).strip()
+    return photos, caption
+
+
+async def _send_reply(message, text: str):
+    """Send reply, extracting PHOTO_FILE:/PHOTO_URL: tokens and sending as photos."""
+    photos, caption = _extract_photos(text)
+    for i, (kind, ref) in enumerate(photos):
+        cap = caption if i == 0 else None
+        try:
+            if kind == "file":
+                with open(ref, "rb") as f:
+                    await message.reply_photo(f, caption=cap)
+                os.unlink(ref)
+            else:
+                await message.reply_photo(ref, caption=cap)
+        except Exception as e:
+            logger.error("Failed to send photo %s: %s", ref, e)
+    if not photos or caption:
+        await message.reply_text(caption or text)
+
+
+async def _send_reply_to_chat(bot, chat_id: int, text: str):
+    """Like _send_reply but using bot.send_* directly."""
+    photos, caption = _extract_photos(text)
+    for i, (kind, ref) in enumerate(photos):
+        cap = caption if i == 0 else None
+        try:
+            if kind == "file":
+                with open(ref, "rb") as f:
+                    await bot.send_photo(chat_id=chat_id, photo=f, caption=cap)
+                os.unlink(ref)
+            else:
+                await bot.send_photo(chat_id=chat_id, photo=ref, caption=cap)
+        except Exception as e:
+            logger.error("Failed to send photo %s: %s", ref, e)
+    if not photos or caption:
+        await bot.send_message(chat_id=chat_id, text=caption or text)
+
 
 def _build_help_text(config, storage) -> str:
     has_imap = storage.load_imap_config() is not None
@@ -51,20 +104,24 @@ def _build_help_text(config, storage) -> str:
 
 
 class BotHandler:
-    def __init__(self, config, global_db: GlobalDB):
+    def __init__(self, config, global_db: GlobalDB, scheduler=None):
         self.config = config
         self.global_db = global_db
+        self.scheduler = scheduler
 
     def _get_storage(self, telegram_id: int) -> UserStorage:
         return UserStorage(data_dir=self.config.data_dir, telegram_id=telegram_id)
 
-    def _get_runner(self, storage: UserStorage) -> AgentRunner:
-        tools = build_tool_registry(storage)
-        memory_fn = partial(update_memory, storage=storage)
-        memory_fn.__name__ = "update_memory"
-        memory_fn.__doc__ = update_memory.__doc__
-        memory_fn._needs_storage = False  # already bound
-        tools.append(memory_fn)
+    def _get_runner(self, storage: UserStorage, telegram_id: int = None) -> AgentRunner:
+        tools = build_tool_registry(storage, scheduler=self.scheduler, telegram_id=telegram_id)
+        for fn in (update_profile, update_context):
+            bound = partial(fn, storage=storage)
+            bound.__name__ = fn.__name__
+            bound.__doc__ = fn.__doc__
+            bound._needs_storage = False
+            tools.append(bound)
+        from bot.tools.heartbeat_tool import build_heartbeat_tools
+        tools += build_heartbeat_tools(storage)
         return AgentRunner(storage=storage, tools=tools)
 
     async def start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -582,7 +639,7 @@ class BotHandler:
         text = update.message.text or ""
         storage = self._get_storage(uid)
         storage.db.add_message(role="user", content=text)
-        runner = self._get_runner(storage)
+        runner = self._get_runner(storage, telegram_id=uid)
 
         async def keep_typing(stop_event: asyncio.Event):
             while not stop_event.is_set():
@@ -616,8 +673,9 @@ class BotHandler:
             stop_typing.set()
             typing_task.cancel()
 
+        storage.append_log(text, reply)
         storage.db.add_message(role="assistant", content=reply)
-        await update.message.reply_text(reply)
+        await _send_reply(update.message, reply)
 
     async def voice(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
@@ -634,15 +692,16 @@ class BotHandler:
             transcript = await loop.run_in_executor(None, self._transcribe, ogg_bytes)
             storage = self._get_storage(uid)
             storage.db.add_message(role="user", content=f"[Voice] {transcript}")
-            runner = self._get_runner(storage)
+            runner = self._get_runner(storage, telegram_id=uid)
             try:
                 reply = await runner.run(transcript)
             except Exception as e:
                 logger.exception("Agent error (voice) for user %s", uid)
                 reply = "Something went wrong processing your voice message."
                 await self._notify_admin_error(ctx, uid, e, "voice")
+            storage.append_log(transcript, reply)
             storage.db.add_message(role="assistant", content=reply)
-            await ctx.bot.send_message(chat_id=uid, text=reply)
+            await _send_reply_to_chat(ctx.bot, uid, reply)
 
         asyncio.create_task(process())
 
