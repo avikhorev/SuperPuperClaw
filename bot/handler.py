@@ -34,8 +34,28 @@ def _extract_photos(text: str):
     return photos, caption
 
 
+_QR_RESPONSE = _re.compile(
+    r"^QR code for\s+(?:the\s+)?(?:text\s+|URL\s+)?[\"«»""]?(.+?)[\"»""]?\.?\s*$",
+    _re.IGNORECASE | _re.DOTALL,
+)
+
+
+def _auto_generate_qr(text: str) -> str:
+    """If Claude responded with 'QR code for X' without calling the tool, do it now."""
+    clean = _re.sub(r"\*\*", "", text.strip())  # strip markdown bold
+    m = _QR_RESPONSE.match(clean)
+    if not m:
+        return text
+    from bot.tools.qrcode_tool import generate_qr
+    result = generate_qr(m.group(1).strip())
+    if result.startswith("PHOTO_FILE:"):
+        return result  # return the token so _extract_photos handles it
+    return text  # fallback to original text if generation failed
+
+
 async def _send_reply(message, text: str):
     """Send reply, extracting PHOTO_FILE:/PHOTO_URL: tokens and sending as photos."""
+    text = _auto_generate_qr(text)
     photos, caption = _extract_photos(text)
     for i, (kind, ref) in enumerate(photos):
         cap = caption if i == 0 else None
