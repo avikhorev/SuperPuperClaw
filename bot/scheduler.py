@@ -18,7 +18,25 @@ DAY_MAP = {
 
 def parse_reminder_request(text: str) -> dict | None:
     """Parse a natural language reminder request into a cron expression and description."""
+    from datetime import datetime, timezone, timedelta
     text_lower = text.lower()
+
+    # Handle relative time: "in N minutes/hours"
+    relative = re.search(r"in\s+(\d+)\s+(minute|minutes|hour|hours)", text_lower)
+    if relative:
+        amount = int(relative.group(1))
+        unit = relative.group(2)
+        now = datetime.now(timezone.utc)
+        if "hour" in unit:
+            target = now + timedelta(hours=amount)
+        else:
+            target = now + timedelta(minutes=amount)
+        cron = f"{target.minute} {target.hour} {target.day} {target.month} *"
+        description = re.sub(
+            r"remind(?:\s+me)?(\s+to)?|in\s+\d+\s+(?:minute|minutes|hour|hours)",
+            "", text, flags=re.IGNORECASE,
+        ).strip()
+        return {"cron": cron, "description": description or text.strip()}
 
     # Extract time
     hour = 9
