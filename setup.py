@@ -94,12 +94,6 @@ def parse_args():
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("--token")
     p.add_argument("--admin-id")
-    p.add_argument("--google-client-id")
-    p.add_argument("--google-client-secret")
-    p.add_argument("--no-google", action="store_true")
-    p.add_argument("--microsoft-client-id")
-    p.add_argument("--microsoft-client-secret")
-    p.add_argument("--no-microsoft", action="store_true")
     return p.parse_known_args()[0]
 
 
@@ -155,65 +149,6 @@ def main():
         print("  Run the following command to log in:")
         print("    claude auth login")
         input("  Press Enter once authenticated to continue: ")
-
-    # Step 3: Google (optional)
-    print("\nStep 3: Google Integration (optional)")
-    print("  Enables Gmail, Google Calendar, and Google Drive for your users.")
-    if args.no_google:
-        print("  Skipped (--no-google)")
-        env.pop("GOOGLE_CLIENT_ID", None)
-        env.pop("GOOGLE_CLIENT_SECRET", None)
-    elif args.google_client_id:
-        env["GOOGLE_CLIENT_ID"] = args.google_client_id
-        env["GOOGLE_CLIENT_SECRET"] = args.google_client_secret or existing.get("GOOGLE_CLIENT_SECRET", "")
-        print(f"  ✓ Google Client ID: {args.google_client_id}")
-    elif existing.get("GOOGLE_CLIENT_ID"):
-        keep = input("  Google integration is configured. Keep it? [Y/n]: ").strip().lower()
-        if keep == "n":
-            want_google = input("  Reconfigure Google integration? [y/n]: ").strip().lower() == "y"
-            if want_google:
-                print("  Paste your Google OAuth credentials from Google Cloud Console.")
-                env["GOOGLE_CLIENT_ID"] = input("  Client ID: ").strip()
-                env["GOOGLE_CLIENT_SECRET"] = input("  Client Secret: ").strip()
-            else:
-                env.pop("GOOGLE_CLIENT_ID", None)
-                env.pop("GOOGLE_CLIENT_SECRET", None)
-    else:
-        want_google = input("  Enable Google integration? [y/n]: ").strip().lower() == "y"
-        if want_google:
-            print("  Paste your Google OAuth credentials from Google Cloud Console.")
-            env["GOOGLE_CLIENT_ID"] = input("  Client ID: ").strip()
-            env["GOOGLE_CLIENT_SECRET"] = input("  Client Secret: ").strip()
-
-    # Step 3b: Microsoft (optional)
-    print("\nStep 3b: Microsoft Integration (optional)")
-    print("  Enables Outlook email and Outlook Calendar for your users.")
-    print("  Register an app at portal.azure.com → App registrations → New registration.")
-    print("  Add redirect URI: https://login.microsoftonline.com/common/oauth2/nativeclient")
-    print("  Add API permissions: Mail.ReadWrite, Mail.Send, Calendars.ReadWrite, offline_access, User.Read")
-    if args.no_microsoft:
-        print("  Skipped (--no-microsoft)")
-        env.pop("MICROSOFT_CLIENT_ID", None)
-        env.pop("MICROSOFT_CLIENT_SECRET", None)
-    elif args.microsoft_client_id:
-        env["MICROSOFT_CLIENT_ID"] = args.microsoft_client_id
-        env["MICROSOFT_CLIENT_SECRET"] = args.microsoft_client_secret or existing.get("MICROSOFT_CLIENT_SECRET", "")
-        print(f"  ✓ Microsoft Client ID: {args.microsoft_client_id}")
-    elif existing.get("MICROSOFT_CLIENT_ID"):
-        keep = input("  Microsoft integration is configured. Keep it? [Y/n]: ").strip().lower()
-        if keep == "n":
-            want = input("  Reconfigure Microsoft integration? [y/n]: ").strip().lower() == "y"
-            if want:
-                env["MICROSOFT_CLIENT_ID"] = input("  Client ID: ").strip()
-                env["MICROSOFT_CLIENT_SECRET"] = input("  Client Secret: ").strip()
-            else:
-                env.pop("MICROSOFT_CLIENT_ID", None)
-                env.pop("MICROSOFT_CLIENT_SECRET", None)
-    else:
-        want = input("  Enable Microsoft integration? [y/n]: ").strip().lower() == "y"
-        if want:
-            env["MICROSOFT_CLIENT_ID"] = input("  Client ID: ").strip()
-            env["MICROSOFT_CLIENT_SECRET"] = input("  Client Secret: ").strip()
 
     write_env(env)
 

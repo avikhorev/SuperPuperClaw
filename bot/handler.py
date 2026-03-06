@@ -15,10 +15,6 @@ from bot.tools.memory_tool import update_memory
 logger = logging.getLogger(__name__)
 
 def _build_help_text(config, storage) -> str:
-    has_google_cfg = bool(config.google_client_id)
-    has_google = has_google_cfg and storage.load_oauth_tokens() is not None
-    has_microsoft_cfg = bool(config.microsoft_client_id)
-    has_microsoft = has_microsoft_cfg and storage.load_microsoft_tokens() is not None
     has_imap = storage.load_imap_config() is not None
     has_ics = storage.load_calendar_config() is not None
     has_caldav = storage.load_caldav_config() is not None
@@ -30,12 +26,6 @@ def _build_help_text(config, storage) -> str:
 
     if has_imap:
         lines.append("📧 Email — read, reply, send, delete, mark read")
-    if has_microsoft:
-        lines.append("📧 Outlook email — read, reply, send, delete")
-        lines.append("📅 Outlook Calendar — list, create, update, delete events")
-    if has_google:
-        lines.append("📧 Gmail — read, send emails")
-        lines.append("📅 Google Calendar — list, create, update, delete events")
     if has_caldav:
         lines.append("📅 Calendar — list, create, update, delete events")
     elif has_ics:
@@ -51,13 +41,9 @@ def _build_help_text(config, storage) -> str:
     lines.append("\n*Commands:*")
     lines.append("/help — this message")
     lines.append("/status — show connected integrations")
-    lines.append("/connect email — link email (IMAP/SMTP)")
+    lines.append("/connect email — link email (Gmail, Outlook, any IMAP)")
     lines.append("/connect caldav — link calendar with write access (iCloud, Fastmail, Nextcloud…)")
     lines.append("/connect calendar — link calendar read-only (ICS URL)")
-    if has_google_cfg:
-        lines.append("/connect google — link Google account (Gmail + Calendar)")
-    if has_microsoft_cfg:
-        lines.append("/connect microsoft — link Microsoft account (Outlook + Calendar)")
 
     lines.append("\nJust talk to me naturally — no commands needed!")
     return "\n".join(lines)
@@ -72,8 +58,7 @@ class BotHandler:
         return UserStorage(data_dir=self.config.data_dir, telegram_id=telegram_id)
 
     def _get_runner(self, storage: UserStorage) -> AgentRunner:
-        has_google = bool(self.config.google_client_id) and storage.load_oauth_tokens() is not None
-        tools = build_tool_registry(storage, has_google=has_google)
+        tools = build_tool_registry(storage)
         memory_fn = partial(update_memory, storage=storage)
         memory_fn.__name__ = "update_memory"
         memory_fn.__doc__ = update_memory.__doc__
@@ -151,23 +136,21 @@ class BotHandler:
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
             return
-        lines = []
-        if self.config.google_client_id:
-            storage = self._get_storage(uid)
-            has_google = storage.load_oauth_tokens() is not None
-            google_status = "✅ Connected" if has_google else "❌ Not connected — use /connect google"
-            lines.append(f"Google: {google_status}")
-        else:
-            lines.append("Google: not configured by admin")
-
         storage = self._get_storage(uid)
+        lines = []
+
         imap_cfg = storage.load_imap_config()
         email_status = f"✅ {imap_cfg['email']}" if imap_cfg else "❌ Not connected — use /connect email"
         lines.append(f"Email: {email_status}")
 
+        caldav_cfg = storage.load_caldav_config()
         cal_cfg = storage.load_calendar_config()
-        cal_status = "✅ Connected" if cal_cfg else "❌ Not connected — use /connect calendar"
-        lines.append(f"Calendar: {cal_status}")
+        if caldav_cfg:
+            lines.append("Calendar: ✅ CalDAV (read/write)")
+        elif cal_cfg:
+            lines.append("Calendar: ✅ ICS (read-only) — use /connect caldav for write access")
+        else:
+            lines.append("Calendar: ❌ Not connected — use /connect caldav or /connect calendar")
 
         await update.message.reply_text("\n".join(lines))
 
@@ -180,38 +163,11 @@ class BotHandler:
         args = ctx.args or []
         subcommand = args[0].lower() if args else ""
 
-        if subcommand == "google":
-            if not self.config.google_client_id:
-                await update.message.reply_text("Google integration is not configured by the admin.")
-                return
-            from bot.oauth import OAuthManager
-            manager = OAuthManager(self.config.google_client_id, self.config.google_client_secret)
-            url = manager.get_auth_url()
-            await update.message.reply_text(
-                f"Click to authorize Google:\n{url}\n\n"
-                "After authorizing, copy the full URL from your browser address bar "
-                "(even if it shows an error) and paste it here."
-            )
-            ctx.user_data["awaiting_oauth"] = True
-
-        elif subcommand == "email":
+        if subcommand == "email":
             await update.message.reply_text(
                 "Let's connect your email.\n\nWhat's your email address?"
             )
             ctx.user_data["connect_step"] = "email_address"
-
-        elif subcommand == "microsoft":
-            if not self.config.microsoft_client_id:
-                await update.message.reply_text("Microsoft integration is not configured by the admin.")
-                return
-            from bot.microsoft_oauth import MicrosoftOAuthManager
-            manager = MicrosoftOAuthManager(self.config.microsoft_client_id, self.config.microsoft_client_secret)
-            url = manager.get_auth_url()
-            await update.message.reply_text(
-                f"Click to authorize Microsoft (Outlook + Calendar):\n{url}\n\n"
-                "After approving, you'll be redirected to a blank page — copy the full URL from your browser and paste it here.",
-            )
-            ctx.user_data["awaiting_microsoft_oauth"] = True
 
         elif subcommand == "caldav":
             await update.message.reply_text(
@@ -219,9 +175,8 @@ class BotHandler:
                 "Which calendar do you use?\n\n"
                 "🍎 *iCloud* — type: `icloud`\n"
                 "📧 *Fastmail* — type: `fastmail`\n"
-                "🏢 *Outlook / Microsoft 365* — type: `outlook`\n"
-                "🌐 *Other* — type your CalDAV server URL directly\n\n"
-                "_Note: Google Calendar works better via /connect google_",
+                "🏢 *Outlook* — type: `outlook`\n"
+                "🌐 *Other* — type your CalDAV server URL directly",
                 parse_mode="Markdown"
             )
             ctx.user_data["connect_step"] = "caldav_provider"
@@ -238,12 +193,8 @@ class BotHandler:
 
         else:
             lines = ["What would you like to connect?\n"]
-            if self.config.google_client_id:
-                lines.append("/connect google — Gmail + Google Calendar (OAuth)")
-            if self.config.microsoft_client_id:
-                lines.append("/connect microsoft — Outlook email + Calendar (OAuth)")
-            lines.append("/connect email — Email (any provider, IMAP)")
-            lines.append("/connect caldav — Calendar with write access (iCloud, Fastmail, Nextcloud…)")
+            lines.append("/connect email — Email (Gmail, Outlook, any IMAP)")
+            lines.append("/connect caldav — Calendar with write access (iCloud, Fastmail, Outlook…)")
             lines.append("/connect calendar — Calendar read-only (ICS URL)")
             await update.message.reply_text("\n".join(lines))
 
@@ -526,46 +477,6 @@ class BotHandler:
         uid = update.effective_user.id
         user = self.global_db.get_user(uid)
         if not user or user["status"] != "approved":
-            return
-
-        # Microsoft OAuth paste-back
-        if ctx.user_data.get("awaiting_microsoft_oauth"):
-            ctx.user_data.pop("awaiting_microsoft_oauth")
-            from bot.microsoft_oauth import MicrosoftOAuthManager, extract_auth_code_from_url
-            code = extract_auth_code_from_url(update.message.text or "")
-            if not code:
-                await update.message.reply_text("Could not find auth code. Try /connect microsoft again.")
-                return
-            manager = MicrosoftOAuthManager(self.config.microsoft_client_id, self.config.microsoft_client_secret)
-            try:
-                tokens = manager.exchange_code(code)
-                storage = self._get_storage(uid)
-                storage.save_microsoft_tokens(tokens)
-                await update.message.reply_text("✅ Microsoft connected! Outlook email and Calendar are now available.")
-            except Exception as e:
-                await update.message.reply_text(f"Authorization failed: {e}")
-            return
-
-        # Google OAuth paste-back flow
-        if ctx.user_data.get("awaiting_oauth"):
-            ctx.user_data.pop("awaiting_oauth")
-            from bot.oauth import OAuthManager, extract_auth_code_from_url
-            code = extract_auth_code_from_url(update.message.text or "")
-            if not code:
-                await update.message.reply_text(
-                    "Could not find auth code in that URL. Try /connect google again."
-                )
-                return
-            manager = OAuthManager(self.config.google_client_id, self.config.google_client_secret)
-            try:
-                tokens = manager.exchange_code(code)
-                storage = self._get_storage(uid)
-                storage.save_oauth_tokens(tokens)
-                await update.message.reply_text(
-                    "Google connected! Calendar, Gmail and Drive are now available."
-                )
-            except Exception as e:
-                await update.message.reply_text(f"Authorization failed: {e}")
             return
 
         # Multi-step connect flows (email, calendar)
