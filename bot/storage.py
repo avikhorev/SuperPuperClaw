@@ -26,8 +26,6 @@ class UserStorage:
         self.user_dir = os.path.join(data_dir, "users", str(telegram_id))
         os.makedirs(self.user_dir, exist_ok=True)
         self.db = UserDB(os.path.join(self.user_dir, "conversations.db"))
-        self._tokens_path = os.path.join(self.user_dir, "oauth_tokens.json")
-
     def read_profile(self) -> str:
         path = os.path.join(self.user_dir, "memory", "profile.md")
         if not os.path.exists(path):
@@ -73,16 +71,6 @@ class UserStorage:
     def write_memory(self, content: str):
         self.write_profile(content)
 
-    def load_oauth_tokens(self) -> dict | None:
-        if not os.path.exists(self._tokens_path):
-            return None
-        with open(self._tokens_path) as f:
-            return json.load(f)
-
-    def save_oauth_tokens(self, tokens: dict):
-        with open(self._tokens_path, "w") as f:
-            json.dump(tokens, f)
-
     def load_imap_config(self) -> dict | None:
         path = os.path.join(self.user_dir, "imap_config.json")
         if not os.path.exists(path):
@@ -113,18 +101,6 @@ class UserStorage:
             return None
         with open(path) as f:
             return json.load(f)
-
-    def load_microsoft_tokens(self) -> dict | None:
-        path = os.path.join(self.user_dir, "microsoft_tokens.json")
-        if not os.path.exists(path):
-            return None
-        with open(path) as f:
-            return json.load(f)
-
-    def save_microsoft_tokens(self, tokens: dict):
-        path = os.path.join(self.user_dir, "microsoft_tokens.json")
-        with open(path, "w") as f:
-            json.dump(tokens, f)
 
     def save_caldav_config(self, config: dict):
         path = os.path.join(self.user_dir, "caldav_config.json")

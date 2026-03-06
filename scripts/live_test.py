@@ -63,6 +63,9 @@ TESTS = [
     # YouTube transcript
     ("youtube",         "Summarize this video: https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
 
+    # YouTube search
+    ("youtube_search",  "Find me a YouTube video about building AI agents in Python and summarize it"),
+
     # QR code
     ("qr_code",         "Generate a QR code for https://github.com"),
 
