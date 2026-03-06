@@ -17,13 +17,17 @@ SYSTEM_TEMPLATE = """You are a helpful personal AI assistant on Telegram.
 
 Today's date and time: {datetime}
 
-What you know about this user:
-{memory}
+{agent_rules}
 
-Be concise. Use bullet points when listing things. Respond in the same language the user writes in.
+## What you know about this user
+
+### Profile
+{profile}
+
+### Current context
+{context}
 
 You have access to tools — use them when they help answer the user's request.
-To remember something important about the user long-term, call the update_memory tool with the complete updated memory content.
 {history}"""
 
 
@@ -77,11 +81,15 @@ def _format_history(history: list) -> str:
 
 
 def build_system_prompt(storage: UserStorage, history: list) -> str:
-    memory = storage.read_memory() or "Nothing known yet."
+    profile = storage.read_profile() or "Nothing known yet."
+    context = storage.read_context() or "No active context."
+    agent_rules = storage.read_agent_rules()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     return SYSTEM_TEMPLATE.format(
         datetime=now,
-        memory=memory,
+        agent_rules=agent_rules,
+        profile=profile,
+        context=context,
         history=_format_history(history),
     )
 

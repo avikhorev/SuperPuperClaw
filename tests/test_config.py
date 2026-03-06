@@ -14,10 +14,8 @@ def test_config_raises_on_missing_required(monkeypatch):
     with pytest.raises(ValueError):
         Config()
 
-def test_google_keys_default_to_none(monkeypatch):
+def test_config_data_dir_defaults_to_data(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
-    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
-    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("DATA_DIR", raising=False)
     config = Config()
-    assert config.google_client_id is None
-    assert config.google_client_secret is None
+    assert config.data_dir == "/data"

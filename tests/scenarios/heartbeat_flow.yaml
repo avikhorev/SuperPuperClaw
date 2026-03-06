@@ -1,0 +1,7 @@
+name: heartbeat_flow
+description: Update heartbeat instructions
+
+turns:
+  - user: "add to my heartbeat: check unread emails every morning"
+    mock_agent_reply: "Heartbeat instructions updated."
+    assert_heartbeat_contains: "check unread emails"

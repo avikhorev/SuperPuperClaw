@@ -1,0 +1,11 @@
+name: memory_flow
+description: Agent saves profile and context when prompted
+
+turns:
+  - user: "My name is Alice and I live in Berlin"
+    mock_agent_reply: "Got it! I've noted your name and location."
+    assert_log_entry: true
+
+  - user: "I'm working on a Rust CLI project"
+    mock_agent_reply: "Understood, I'll keep that in mind."
+    assert_log_entry: true

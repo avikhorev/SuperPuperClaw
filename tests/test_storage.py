@@ -51,3 +51,46 @@ def test_save_and_load_calendar_config(storage):
     storage.save_calendar_config({"ics_url": "https://example.com/calendar.ics"})
     loaded = storage.load_calendar_config()
     assert loaded["ics_url"] == "https://example.com/calendar.ics"
+
+def test_caldav_config_absent_by_default(storage):
+    assert storage.load_caldav_config() is None
+
+def test_save_and_load_caldav_config(storage):
+    cfg = {"caldav_url": "https://caldav.icloud.com", "username": "user@icloud.com", "password": "secret"}
+    storage.save_caldav_config(cfg)
+    loaded = storage.load_caldav_config()
+    assert loaded["caldav_url"] == "https://caldav.icloud.com"
+    assert loaded["username"] == "user@icloud.com"
+
+def test_microsoft_tokens_absent_by_default(storage):
+    assert storage.load_microsoft_tokens() is None
+
+def test_save_and_load_microsoft_tokens(storage):
+    tokens = {"access_token": "abc", "refresh_token": "xyz"}
+    storage.save_microsoft_tokens(tokens)
+    loaded = storage.load_microsoft_tokens()
+    assert loaded["access_token"] == "abc"
+
+def test_memory_alias_reads_profile(storage):
+    storage.write_profile("Name: Test")
+    assert storage.read_memory() == "Name: Test"
+
+def test_memory_alias_writes_profile(storage):
+    storage.write_memory("Name: Via alias")
+    assert storage.read_profile() == "Name: Via alias"
+
+def test_profile_and_context_independent(storage):
+    storage.write_profile("profile data")
+    storage.write_context("context data")
+    assert storage.read_profile() == "profile data"
+    assert storage.read_context() == "context data"
+
+def test_profile_overwrite(storage):
+    storage.write_profile("v1")
+    storage.write_profile("v2")
+    assert storage.read_profile() == "v2"
+
+def test_context_overwrite(storage):
+    storage.write_context("old context")
+    storage.write_context("new context")
+    assert storage.read_context() == "new context"

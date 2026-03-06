@@ -1,0 +1,11 @@
+name: reminders_flow
+description: Set, list and cancel reminders
+
+turns:
+  - user: "remind me to standup every weekday at 9am"
+    mock_agent_reply: "Reminder set: 'standup' (id: 1)"
+    assert_db_job_count: 1
+
+  - user: "what reminders do I have?"
+    mock_agent_reply: "You have 1 reminder: standup every weekday at 9am"
+    assert_db_job_count: 1
