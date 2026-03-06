@@ -195,15 +195,16 @@ class BotHandler:
 
         elif subcommand == "caldav":
             await update.message.reply_text(
-                "Let's connect your calendar with full read/write access via CalDAV.\n\n"
-                "This works with iCloud, Fastmail, Nextcloud, Radicale, and others.\n\n"
-                "Paste your CalDAV server URL:\n"
-                "• iCloud: `https://caldav.icloud.com`\n"
-                "• Fastmail: `https://caldav.fastmail.com`\n"
-                "• Nextcloud: `https://your-server/remote.php/dav`",
+                "Let's connect your calendar so I can create, edit and delete events.\n\n"
+                "Which calendar do you use?\n\n"
+                "🍎 *iCloud* — type: `icloud`\n"
+                "📧 *Fastmail* — type: `fastmail`\n"
+                "🏢 *Outlook / Microsoft 365* — type: `outlook`\n"
+                "🌐 *Other* — type your CalDAV server URL directly\n\n"
+                "_Note: Google Calendar works better via /connect google_",
                 parse_mode="Markdown"
             )
-            ctx.user_data["connect_step"] = "caldav_url"
+            ctx.user_data["connect_step"] = "caldav_provider"
 
         elif subcommand == "calendar":
             await update.message.reply_text(
@@ -400,6 +401,41 @@ class BotHandler:
             return True
 
         # ── CalDAV flow ───────────────────────────────────────────────────────
+        CALDAV_URLS = {
+            "icloud": "https://caldav.icloud.com",
+            "fastmail": "https://caldav.fastmail.com",
+            "outlook": "https://outlook.office365.com/caldav/v1",
+        }
+
+        if step == "caldav_provider":
+            known = CALDAV_URLS.get(text.lower().strip())
+            if known:
+                ctx.user_data["caldav_url"] = known
+                provider = text.lower().strip()
+                if provider == "icloud":
+                    hint = "Use an *app-specific password* — not your Apple ID password.\nGenerate one at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords."
+                elif provider == "outlook":
+                    hint = "Use your Microsoft account email and password.\n_(If your organisation uses SSO/single sign-on, this may not work — contact your IT admin)_"
+                else:
+                    hint = "Use your Fastmail password or an app password from Fastmail settings."
+                await update.message.reply_text(
+                    f"Got it! Your email address for {text}:",
+                    parse_mode="Markdown"
+                )
+                ctx.user_data["caldav_hint"] = hint
+            elif text.startswith("http"):
+                ctx.user_data["caldav_url"] = text
+                await update.message.reply_text("Your username (usually your email address):")
+                ctx.user_data["caldav_hint"] = ""
+            else:
+                await update.message.reply_text(
+                    "Please type one of: `icloud`, `fastmail`, `outlook`, or paste your server URL.",
+                    parse_mode="Markdown"
+                )
+                return True
+            ctx.user_data["connect_step"] = "caldav_username"
+            return True
+
         if step == "caldav_url":
             if not text.startswith("http"):
                 await update.message.reply_text("Please paste a URL starting with https://")
@@ -411,11 +447,11 @@ class BotHandler:
 
         if step == "caldav_username":
             ctx.user_data["caldav_username"] = text
-            await update.message.reply_text(
-                "Your password or app-specific password:\n\n"
-                "_(For iCloud/Google you must use an app password, not your main password)_",
-                parse_mode="Markdown"
-            )
+            hint = ctx.user_data.get("caldav_hint", "")
+            msg = "Your password:"
+            if hint:
+                msg += f"\n\n{hint}"
+            await update.message.reply_text(msg, parse_mode="Markdown")
             ctx.user_data["connect_step"] = "caldav_password"
             return True
 
@@ -433,7 +469,7 @@ class BotHandler:
                     raise ValueError("No calendars found.")
                 cal_names = [c.name for c in calendars]
             except Exception as e:
-                for k in ("connect_step", "caldav_url", "caldav_username"):
+                for k in ("connect_step", "caldav_url", "caldav_username", "caldav_hint"):
                     ctx.user_data.pop(k, None)
                 await update.message.reply_text(
                     f"Could not connect: {e}\n\nPlease check your URL and credentials, then try /connect caldav again."
