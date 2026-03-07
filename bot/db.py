@@ -9,6 +9,9 @@ class GlobalDB:
         self._init()
 
     def _conn(self):
+        # Short-lived connections per operation: safe for concurrent async use and
+        # acceptable at current scale (~50-100 users).
+        # TODO: consider a connection pool if query latency becomes measurable under load.
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn

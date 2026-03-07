@@ -98,13 +98,14 @@ class AgentRunner:
     def __init__(self, storage: UserStorage, tools: list):
         self.storage = storage
         self.tools = tools
+        # Cache MCP server — tools don't change between messages for the same user session
+        mcp_tools = _wrap_tools_for_mcp(self.tools, self.storage)
+        self._server = create_sdk_mcp_server("bot-tools", tools=mcp_tools)
 
     async def run(self, user_message: str) -> str:
         history = self.storage.db.get_recent_messages(20)
         system = build_system_prompt(self.storage, history)
-
-        mcp_tools = _wrap_tools_for_mcp(self.tools, self.storage)
-        server = create_sdk_mcp_server("bot-tools", tools=mcp_tools)
+        server = self._server
 
         options = ClaudeAgentOptions(
             system_prompt=system,

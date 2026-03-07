@@ -119,6 +119,8 @@ class UserStorage:
             f.write(entry)
 
     def search_logs(self, query: str) -> list[str]:
+        # Linear scan is fine for typical usage (months of logs, ~100 active users).
+        # TODO: migrate to SQLite FTS5 if logs grow to years of history per user.
         logs_dir = os.path.join(self.user_dir, "logs")
         if not os.path.exists(logs_dir):
             return []

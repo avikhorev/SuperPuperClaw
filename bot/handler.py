@@ -676,12 +676,16 @@ class BotHandler:
         storage = self._get_storage(uid)
         storage.db.add_message(role="user", content=text)
 
-        # Handle QR code requests directly without going through the agent
-        if _re.search(r"\bqr\b", text, _re.IGNORECASE):
+        # Handle explicit QR generation requests directly (narrowed to avoid false positives
+        # like "what is a QR code?" or "show me my previous QR codes")
+        _qr_gen = _re.search(
+            r"(?:generate|create|make|gen(?:erate)?|сделай|создай|сгенерируй)\s+(?:a\s+)?qr(?:\s+code)?(?:\s+for)?\s+(.+)"
+            r"|qr\s+code\s+for\s+(.+)",
+            text, _re.IGNORECASE,
+        )
+        if _qr_gen:
             from bot.tools.qrcode_tool import generate_qr
-            # Extract what to encode: everything after "for", "для", "of" etc., or full text
-            m = _re.search(r"(?:qr\s+(?:code\s+)?(?:for|для|of|на)\s+)(.+)", text, _re.IGNORECASE)
-            qr_text = m.group(1).strip() if m else text
+            qr_text = (_qr_gen.group(1) or _qr_gen.group(2)).strip()
             result = generate_qr(qr_text)
             await _send_reply(update.message, result)
             return
