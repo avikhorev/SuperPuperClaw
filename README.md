@@ -43,7 +43,7 @@ A self-hosted, multi-user personal AI assistant for Telegram. Users chat natural
 
 - Docker + Docker Compose
 - A [Telegram bot token](https://t.me/BotFather)
-- An [Anthropic API key](https://console.anthropic.com/) **or** a Claude subscription (via `claude` CLI)
+- A Claude subscription or [Anthropic API key](https://console.anthropic.com/) (authenticated via `claude` CLI)
 - A Linux VPS (2 CPU / 4 GB RAM comfortable for ~50–100 active users)
 
 ## Quick install
@@ -79,7 +79,7 @@ python setup.py
 docker compose up -d
 ```
 
-`setup.py` will ask for your Telegram token and Anthropic key, detect your Telegram ID as the admin, and write `.env`.
+`setup.py` will ask for your Telegram token, optionally configure a Webshare proxy (for YouTube transcripts), detect your Telegram ID as the admin, and write `.env`.
 
 ## Admin CLI
 
@@ -118,7 +118,7 @@ Each user has memory files the agent reads and updates automatically:
 | `memory/profile.md` | `update_profile` | Stable facts: name, timezone, preferences |
 | `memory/context.md` | `update_context` | Working state: current projects, ongoing tasks |
 | `memory/agent.md` | _(read-only)_ | Behavior rules: tone, response style |
-| `memory/heartbeat.md` | `update_heartbeat` | Daily proactive digest instructions |
+| `memory/heartbeat.md` | `read_heartbeat`, `update_heartbeat` | Daily proactive digest instructions |
 
 Session logs are written to `logs/YYYY-MM-DD.md` and searchable via `search_logs`.
 
@@ -140,7 +140,7 @@ bot/
 └── tools/
     ├── registry.py       # assembles tool list per user
     ├── memory_tool.py    # update_profile, update_context
-    ├── heartbeat_tool.py # update_heartbeat
+    ├── heartbeat_tool.py # read_heartbeat, update_heartbeat
     ├── logs_tool.py      # search_logs
     ├── skills_tool.py    # save_skill, read_skill, list_skills
     ├── reminders.py      # set_reminder, list_reminders, cancel_reminder
@@ -153,7 +153,6 @@ bot/
     └── ...
 data/                   # Docker volume (persisted)
 ├── global.db
-├── logs/
 └── users/<telegram_id>/
     ├── conversations.db
     ├── memory/
