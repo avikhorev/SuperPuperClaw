@@ -35,7 +35,7 @@ def _extract_photos(text: str):
 
 
 _QR_RESPONSE = _re.compile(
-    r"^QR code for\s+(?:the\s+)?(?:text\s+|URL\s+)?[\"«»""]?(.+?)[\"»""]?\.?\s*$",
+    r'''^QR code for\s+(?:the\s+)?(?:text\s+|URL\s+)?["«»""]?(.+?)["»""]?\.?\s*$''',
     _re.IGNORECASE | _re.DOTALL,
 )
 

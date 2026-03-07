@@ -61,7 +61,7 @@ def reminder_tools(user_db, mock_scheduler):
 
 def test_set_reminder_creates_db_record(reminder_tools, user_db):
     set_reminder, _, _ = reminder_tools
-    result = set_reminder("every Monday at 9am", "standup")
+    result = set_reminder("standup", "every Monday at 9am")
     assert "standup" in result
     jobs = user_db.list_active_jobs()
     assert len(jobs) == 1
@@ -90,7 +90,7 @@ def test_list_reminders_empty(reminder_tools):
 
 def test_list_reminders_shows_jobs(reminder_tools, user_db):
     set_reminder, list_reminders, _ = reminder_tools
-    set_reminder("every Monday at 9am", "standup")
+    set_reminder("standup", "every Monday at 9am")
     result = list_reminders()
     assert "standup" in result
     assert "[1]" in result

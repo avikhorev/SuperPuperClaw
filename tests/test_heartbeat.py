@@ -24,7 +24,7 @@ def test_write_read_heartbeat(storage):
 
 def test_update_heartbeat_tool(storage):
     tools = build_heartbeat_tools(storage)
-    update_fn = tools[0]
+    update_fn = tools[1]
     result = update_fn("Check weather every morning")
     assert "updated" in result.lower()
     assert storage.read_heartbeat() == "Check weather every morning"

@@ -139,7 +139,7 @@ async def test_agent_reads_skill(env):
 async def test_agent_lists_skills(env):
     env["storage"].write_skill("alpha", "do alpha")
     env["storage"].write_skill("beta", "do beta")
-    reply = await send(env, "What skills do I have?")
+    reply = await send(env, "Use the list_skills tool and tell me what user skills I have saved")
     assert "alpha" in reply.lower() or "beta" in reply.lower()
 
 

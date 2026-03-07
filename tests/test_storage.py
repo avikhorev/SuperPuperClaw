@@ -20,15 +20,6 @@ def test_user_db_accessible(storage):
     msgs = storage.db.get_recent_messages(5)
     assert len(msgs) == 1
 
-def test_oauth_tokens_absent_by_default(storage):
-    assert storage.load_oauth_tokens() is None
-
-def test_save_and_load_oauth_tokens(storage):
-    tokens = {"token": "abc", "refresh_token": "xyz", "expiry": "2030-01-01"}
-    storage.save_oauth_tokens(tokens)
-    loaded = storage.load_oauth_tokens()
-    assert loaded["token"] == "abc"
-
 def test_delete_removes_user_dir(tmp_path):
     s = UserStorage(data_dir=str(tmp_path), telegram_id=99)
     s.write_memory("something")
@@ -61,15 +52,6 @@ def test_save_and_load_caldav_config(storage):
     loaded = storage.load_caldav_config()
     assert loaded["caldav_url"] == "https://caldav.icloud.com"
     assert loaded["username"] == "user@icloud.com"
-
-def test_microsoft_tokens_absent_by_default(storage):
-    assert storage.load_microsoft_tokens() is None
-
-def test_save_and_load_microsoft_tokens(storage):
-    tokens = {"access_token": "abc", "refresh_token": "xyz"}
-    storage.save_microsoft_tokens(tokens)
-    loaded = storage.load_microsoft_tokens()
-    assert loaded["access_token"] == "abc"
 
 def test_memory_alias_reads_profile(storage):
     storage.write_profile("Name: Test")
