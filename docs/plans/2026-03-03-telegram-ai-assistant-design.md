@@ -1,7 +1,8 @@
 # Telegram AI Assistant — Design Document
 
 **Date:** 2026-03-03
-**Status:** Approved
+**Last updated:** 2026-03-07
+**Status:** Implemented
 
 ---
 
@@ -16,11 +17,10 @@ A multi-user personal AI assistant Telegram bot. Users interact naturally via ch
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 |
-| AI agent | Anthropic Agent SDK |
+| AI agent | Anthropic Agent SDK (`claude_agent_sdk`) |
 | Telegram | python-telegram-bot (polling) |
 | Persistence | SQLite (per-user) |
 | Scheduling | APScheduler |
-| OAuth callback | aiohttp (internal) |
 | Voice transcription | faster-whisper (local) |
 | Deployment | Docker + docker-compose |
 
@@ -31,41 +31,56 @@ A multi-user personal AI assistant Telegram bot. Users interact naturally via ch
 ```
 /
 ├── bot/
-│   ├── main.py              # entry point
+│   ├── main.py              # entry point, scheduler setup, command menu
 │   ├── handler.py           # Telegram message/command handlers
-│   ├── agent.py             # Anthropic Agent SDK runner
-│   ├── memory.py            # read/write memory.md per user
-│   ├── scheduler.py         # APScheduler, reminder jobs
-│   ├── oauth.py             # OAuth callback server (aiohttp)
+│   ├── agent.py             # Anthropic Agent SDK runner, system prompt builder
+│   ├── storage.py           # per-user file storage (memory, logs, skills, configs)
+│   ├── db.py                # GlobalDB + UserDB (SQLite)
+│   ├── scheduler.py         # APScheduler reminders + cron parsing
+│   ├── heartbeat.py         # daily proactive digest runner
+│   ├── imap_providers.py    # IMAP/SMTP auto-detection by email domain
+│   ├── logger.py
 │   └── tools/
-│       ├── web_search.py    # duckduckgo-search
-│       ├── web_reader.py    # httpx + BeautifulSoup
+│       ├── registry.py         # assembles tool list per user
+│       ├── memory_tool.py      # update_profile, update_context
+│       ├── heartbeat_tool.py   # read_heartbeat, update_heartbeat
+│       ├── logs_tool.py        # search_logs
+│       ├── skills_tool.py      # save_skill, read_skill, list_skills
+│       ├── reminders.py        # set_reminder, list_reminders, cancel_reminder
+│       ├── imap_email.py       # read/send email via IMAP/SMTP
+│       ├── caldav_calendar.py  # read/write calendar via CalDAV
+│       ├── ics_calendar.py     # read-only calendar via ICS URL
+│       ├── web_search.py       # DuckDuckGo HTML scrape (geo-routing bypass)
+│       ├── web_reader.py       # httpx + BeautifulSoup
 │       ├── wikipedia.py
-│       ├── youtube.py       # youtube-transcript-api
+│       ├── youtube.py          # youtube-transcript-api
 │       ├── arxiv.py
-│       ├── news.py          # RSS feeds
-│       ├── weather.py       # Open-Meteo
-│       ├── currency.py      # frankfurter.app
-│       ├── whisper.py       # faster-whisper
-│       ├── pdf.py           # pypdf
-│       ├── qrcode.py
-│       ├── url_shortener.py
-│       ├── google_calendar.py
-│       ├── gmail.py
-│       └── google_drive.py
+│       ├── news.py             # RSS feeds (feedparser)
+│       ├── weather.py          # Open-Meteo (no key)
+│       ├── currency.py         # frankfurter.app (no key)
+│       ├── flights.py          # link builder (Kiwi/Google Flights)
+│       ├── pdf_tool.py         # pypdf
+│       ├── qrcode_tool.py      # api.qrserver.com → sent as photo by handler
+│       └── url_shortener.py    # tinyurl.com
 ├── data/                    # Docker volume (persisted)
-│   ├── global.db            # all users, auth state
-│   ├── logs/
-│   │   ├── bot.log
-│   │   └── errors.log
+│   ├── global.db
 │   └── users/
 │       └── <telegram_id>/
-│           ├── memory.md
 │           ├── conversations.db
-│           └── oauth_tokens.json
-├── setup.py                 # interactive setup script
-├── admin.py                 # CLI admin tool
-├── install.sh               # curl-based one-liner installer
+│           ├── memory/
+│           │   ├── profile.md      # stable user facts
+│           │   ├── context.md      # working state / current projects
+│           │   ├── agent.md        # behavior rules (seeded from DEFAULT_AGENT_RULES)
+│           │   └── heartbeat.md    # daily digest instructions
+│           ├── logs/
+│           │   └── YYYY-MM-DD.md
+│           ├── skills/
+│           │   └── <name>.md
+│           ├── imap_config.json
+│           └── caldav_config.json
+├── setup.py
+├── admin.py
+├── install.sh
 ├── Dockerfile
 ├── docker-compose.yml
 └── .env
@@ -91,40 +106,21 @@ users(
 
 ```sql
 messages(id, role, content, timestamp)
-jobs(id, cron, description, next_run, active)
-user(id, status, is_admin, created_at)
-```
-
-### `/data/users/<telegram_id>/memory.md`
-
-Free-text file maintained by Claude. Written via `memory_update` tool call. Read in full at the start of every conversation.
-
-```markdown
-- Name: Alex
-- Timezone: Europe/London
-- Prefers concise bullet responses
-- Has standup every Monday 9am
-```
-
-### `/data/users/<telegram_id>/oauth_tokens.json`
-
-```json
-{
-  "token": "...",
-  "refresh_token": "...",
-  "expiry": "2026-04-01T12:00:00Z"
-}
+jobs(id, cron, description, next_run, active, fail_count)
 ```
 
 ---
 
-## User Isolation
+## Memory System
 
-- Every message: `telegram_id` extracted → checked against `global.db` before any action
-- File paths always built server-side from verified `telegram_id` — never from user input
-- Agent tool registry scoped to current user only — no cross-user API exists
-- Per-user SQLite files — no shared connections
-- `/data` volume only accessible inside Docker container
+| File | Tool(s) | Purpose |
+|---|---|---|
+| `memory/profile.md` | `update_profile` | Stable facts: name, timezone, preferences |
+| `memory/context.md` | `update_context` | Working state: projects, ongoing tasks |
+| `memory/agent.md` | _(read-only)_ | Behavior rules — seeded from `DEFAULT_AGENT_RULES` |
+| `memory/heartbeat.md` | `read_heartbeat`, `update_heartbeat` | Daily digest instructions |
+| `logs/YYYY-MM-DD.md` | `search_logs` | Full conversation history, searchable |
+| `skills/<name>.md` | `save_skill`, `read_skill`, `list_skills` | Named reusable instruction sets |
 
 ---
 
@@ -135,159 +131,75 @@ Telegram message
        ↓
 1. Auth check (global.db — status == approved?)
        ↓
-2. Load context:
-   - memory.md (full)
-   - last N messages from conversations.db
+2. Load context: profile.md + context.md + agent.md + last 20 messages
        ↓
-3. Build system prompt:
-   - user facts from memory.md
-   - current date/time in user's timezone
-   - available tools
+3. Build system prompt (current date/time + memory + tool list)
        ↓
-4. Run Anthropic Agent SDK
-   - Claude selects and calls tools
-   - results returned, Claude may chain tool calls
+4. Run Anthropic Agent SDK (Claude selects and chains tool calls)
        ↓
-5. Save user message + assistant response to conversations.db
+5. Save to conversations.db + append to logs/YYYY-MM-DD.md
        ↓
-6. Optionally update memory.md (if Claude called memory_update)
-       ↓
-7. Send response to Telegram
+6. Send response (PHOTO_FILE:/path or PHOTO_URL:url → sent as photo; else text)
 ```
 
-**Slow tools** (Whisper, large PDFs): dispatched as asyncio background tasks. Bot sends acknowledgement immediately, sends result when ready — no user polling needed.
-
-**Voice messages**: Telegram `.ogg` → downloaded → faster-whisper → transcript fed to agent as text.
+Voice messages: Telegram `.ogg` → faster-whisper → transcript → agent.
 
 ---
 
 ## Tools
 
-### Stateless
-| Tool | Library / API |
+### Built-in (no keys required)
+
+| Tool | Source |
 |---|---|
-| Web search | duckduckgo-search |
+| Web search | DuckDuckGo HTML lite (`kl=us-en` bypasses geo-routing) |
 | Web reader | httpx + BeautifulSoup |
 | Wikipedia | wikipedia |
-| YouTube transcripts | youtube-transcript-api |
+| YouTube transcripts | youtube-transcript-api *(blocked from cloud IPs by YouTube)* |
 | arXiv search | arxiv |
-| News digest | feedparser (RSS) |
-| Weather | Open-Meteo (no key) |
-| Currency conversion | frankfurter.app (no key) |
-| QR code | qrcode (local) |
-| URL shortener | tinyurl.com (no key) |
-| PDF summary | pypdf (local) |
-| Voice transcription | faster-whisper (local) |
-| Gmail | google-api-python-client |
-| Google Calendar | google-api-python-client |
-| Google Drive | google-api-python-client |
+| News digest | RSS/feedparser (BBC, NYT, Lenta, RBC, Spiegel, DW) |
+| Weather | Open-Meteo |
+| Currency conversion | frankfurter.app |
+| QR code | api.qrserver.com → photo |
+| URL shortener | tinyurl.com |
+| PDF summary | pypdf |
+| Flights | booking link builder |
+| Log search | full-text grep over daily logs |
+| Skills | save/read/list named `.md` files |
+| Reminders | APScheduler cron jobs, persisted in SQLite |
 
-### Stateful
-| Tool | State | Location |
-|---|---|---|
-| Reminders | job definitions | `jobs` table |
-| Google OAuth | tokens | `oauth_tokens.json` |
-| Memory update | user facts | `memory.md` |
-| Conversation | message history | `messages` table |
+### Optional integrations
+
+| Integration | Config |
+|---|---|
+| Email (IMAP/SMTP) | `imap_config.json` — auto-detected from email domain |
+| Calendar read/write (CalDAV) | `caldav_config.json` |
+| Calendar read-only (ICS URL) | `caldav_config.json` |
 
 ---
 
 ## Access Control
 
-- **Registration:** users send `/start` → status set to `pending`
-- **Approval:** admin receives notification, runs `/approve <telegram_id>` or uses `botadmin` CLI
-- **Admin:** first user to send `/start` after fresh install is automatically set as admin
-- **Blocking/banning:** via `botadmin` CLI
+- **Registration:** `/start` → status `pending`
+- **Approval:** admin via `botadmin` CLI
+- **Admin:** first user after fresh install auto-promoted
+- **Blocking:** via `botadmin` CLI
 
 ---
 
-## Google Integration
+## Environment Variables
 
-- **OAuth app:** one shared Google Cloud project (admin sets up once — Gmail API, Calendar API, Drive API enabled)
-- **Per-user auth flow:**
-  1. User types `/connect google`
-  2. Bot sends Google auth URL
-  3. User authorizes in browser, copies redirect URL, pastes back to bot
-  4. Bot extracts auth code, exchanges for tokens, saves to `oauth_tokens.json`
-- **Token refresh:** silent refresh on each Google API call; if refresh fails → prompt user to reconnect
-
----
-
-## Setup & Deployment
-
-### One-liner install
-```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | bash
-```
-
-`install.sh` checks dependencies (docker, docker compose, git), clones repo, runs `setup.py`.
-
-### Interactive setup (`setup.py`)
-1. Enter Telegram Bot Token → validated via Telegram API
-2. Enter Anthropic API Key → validated
-3. Google integration (optional) → enter Client ID + Secret
-4. Admin detection → "Send any message to the bot, then press Enter" → auto-detects `telegram_id`
-5. Writes `.env`, initializes `global.db` with admin user
-6. Starts `docker compose up -d`
-
-### Environment variables (`.env`)
 ```
 TELEGRAM_TOKEN=
 ANTHROPIC_API_KEY=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
 ```
 
-### Admin CLI
-```bash
-botadmin   # alias set during install
-```
-
-Menus:
-- **Status & Stats** — uptime, user counts, messages today, API cost estimate
-- **Users** — list all/pending, approve, ban, delete + data, view memory
-- **Jobs** — list and cancel scheduled reminders
-- **Logs** — recent logs, errors only, search by user (browse list or type ID)
-- **System** — view logs, restart bot
+No Google OAuth, no cloud service keys required.
 
 ---
 
-## Error Handling
+## Known Limitations
 
-| Scenario | User message | Admin notification |
-|---|---|---|
-| Tool failure | "X is unavailable right now" | No |
-| Google token expired | "Reconnect Google with /connect google" | No |
-| Anthropic rate limit | "I'm busy, please wait a moment" | No |
-| Anthropic auth/billing error | "Something went wrong" | Yes — Telegram DM |
-| Reminder delivery failure | Notified on next message (after 3 failures) | No |
-| Unhandled exception | "Something went wrong, please try again" | Yes — Telegram DM |
-
-All errors logged to `/data/logs/errors.log`. Accessible via `botadmin` → Logs.
-
----
-
-## Scaling
-
-**Comfortable capacity on 2 CPU / 4GB VPS:**
-- ~50–100 active users
-- ~10 simultaneous conversations
-- Voice transcriptions queue (faster-whisper is CPU-bound)
-
-**v2 scaling path (if needed):**
-- Redis + Celery worker queue for slow tools
-- PostgreSQL for global DB
-- Multiple bot worker processes + Telegram webhook
-
----
-
-## User Commands
-
-```
-/start        — register / welcome message
-/help         — list features and available tools
-/connect google — link Google account
-/status       — show connected integrations
-```
-
-All other interactions via natural language.
+- **YouTube transcripts:** YouTube blocks cloud server IPs. Bot falls back to summarising from search snippets.
+- **Web search geo-routing:** DDG JSON API returns region-locked results; fixed via HTML lite endpoint.
+- **Flight prices:** VPS geo returns non-English results; bot provides booking links instead of live prices.
