@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Interactive setup script — run once after cloning the repo.
 
-Optional args (skip prompts, still show settings):
+Optional args (skip prompts):
   --token TOKEN
   --admin-id ID
-  --google-client-id ID --google-client-secret SECRET
-  --no-google
 """
 import argparse
 import json
