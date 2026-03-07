@@ -1,6 +1,7 @@
 import asyncio
 import logging
-import os
+import os as _os
+import tempfile as _tempfile
 from functools import partial
 
 from telegram import Update
@@ -21,11 +22,29 @@ _PHOTO_URL_TOKEN  = _re.compile(r"PHOTO_URL:(\S+)")
 _MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
 
+_TMPDIR = _os.path.realpath(_tempfile.gettempdir())
+
+
+def _safe_photo_path(path: str) -> str | None:
+    """Return realpath only if it's inside the system temp directory; else None."""
+    try:
+        real = _os.path.realpath(path)
+        if real.startswith(_TMPDIR + _os.sep) or real.startswith(_TMPDIR):
+            return real
+    except Exception:
+        pass
+    return None
+
+
 def _extract_photos(text: str):
     """Return (list_of_photo_refs, cleaned_caption). photo_ref is a path or URL."""
     photos = []
     for path in _PHOTO_FILE_TOKEN.findall(text):
-        photos.append(("file", path))
+        safe = _safe_photo_path(path)
+        if safe:
+            photos.append(("file", safe))
+        else:
+            logger.warning("Rejected PHOTO_FILE path outside tmpdir: %s", path)
     for url in _PHOTO_URL_TOKEN.findall(text):
         photos.append(("url", url))
     for url in _MARKDOWN_IMAGE.findall(text):
@@ -63,7 +82,7 @@ async def _send_reply(message, text: str):
             if kind == "file":
                 with open(ref, "rb") as f:
                     await message.reply_photo(f, caption=cap)
-                os.unlink(ref)
+                _os.unlink(ref)
             else:
                 await message.reply_photo(ref, caption=cap)
         except Exception as e:
@@ -81,7 +100,7 @@ async def _send_reply_to_chat(bot, chat_id: int, text: str):
             if kind == "file":
                 with open(ref, "rb") as f:
                     await bot.send_photo(chat_id=chat_id, photo=f, caption=cap)
-                os.unlink(ref)
+                _os.unlink(ref)
             else:
                 await bot.send_photo(chat_id=chat_id, photo=ref, caption=cap)
         except Exception as e:
@@ -796,7 +815,7 @@ class BotHandler:
             segments, _ = model.transcribe(path)
             return " ".join(s.text for s in segments)
         finally:
-            os.unlink(path)
+            _os.unlink(path)
 
     async def document(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id

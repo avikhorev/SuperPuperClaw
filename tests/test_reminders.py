@@ -102,7 +102,7 @@ def test_cancel_reminder(reminder_tools, user_db, mock_scheduler):
     job_id = user_db.list_active_jobs()[0]["id"]
     result = cancel_reminder(job_id)
     assert str(job_id) in result
-    mock_scheduler.remove_job.assert_called_once_with(job_id)
+    mock_scheduler.remove_job.assert_called_once_with(job_id, telegram_id=12345)
     assert user_db.list_active_jobs() == []
 
 
@@ -116,10 +116,10 @@ def scheduler():
 
 def test_scheduler_add_and_remove_job(scheduler):
     scheduler.add_job(telegram_id=1, job_id=42, cron="0 9 * * mon", description="test")
-    job = scheduler.scheduler.get_job("job_42")
+    job = scheduler.scheduler.get_job("job_1_42")
     assert job is not None
-    scheduler.remove_job(42)
-    assert scheduler.scheduler.get_job("job_42") is None
+    scheduler.remove_job(42, telegram_id=1)
+    assert scheduler.scheduler.get_job("job_1_42") is None
 
 
 def test_scheduler_remove_nonexistent_job_does_not_raise(scheduler):

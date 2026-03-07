@@ -26,7 +26,7 @@ def build_reminder_tools(scheduler, user_db, telegram_id):
     def cancel_reminder(reminder_id: int) -> str:
         """Cancel a reminder by its ID."""
         user_db.cancel_job(reminder_id)
-        scheduler.remove_job(reminder_id)
+        scheduler.remove_job(reminder_id, telegram_id=telegram_id)
         return f"Reminder {reminder_id} cancelled."
 
     return [set_reminder, list_reminders, cancel_reminder]

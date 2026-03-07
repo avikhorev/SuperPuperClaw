@@ -14,8 +14,8 @@ load_dotenv()
 
 
 def main():
-    os.makedirs("/data/logs", exist_ok=True)
     config = Config()
+    os.makedirs(os.path.join(config.data_dir, "logs"), exist_ok=True)
     setup_logging(config.data_dir)
     global_db = GlobalDB(os.path.join(config.data_dir, "global.db"))
 

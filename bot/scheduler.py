@@ -94,17 +94,19 @@ class ReminderScheduler:
             month=parts[3],
             day_of_week=parts[4],
         )
+        # Composite ID prevents collision when two users share the same per-user job_id
+        scheduler_id = f"job_{telegram_id}_{job_id}"
         self.scheduler.add_job(
             self._send_reminder,
             trigger=trigger,
             args=[telegram_id, job_id, description, db_path],
-            id=f"job_{job_id}",
+            id=scheduler_id,
             replace_existing=True,
         )
 
-    def remove_job(self, job_id: int):
+    def remove_job(self, job_id: int, telegram_id: int = 0):
         try:
-            self.scheduler.remove_job(f"job_{job_id}")
+            self.scheduler.remove_job(f"job_{telegram_id}_{job_id}")
         except Exception:
             pass
 

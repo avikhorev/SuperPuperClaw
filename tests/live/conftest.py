@@ -10,14 +10,16 @@ def _has_api_key() -> bool:
 
 
 def _has_claude_cli() -> bool:
-    """Return True if the claude CLI is installed and responsive (subscription mode)."""
+    """Return True if the claude CLI is installed AND authenticated (not just present)."""
     if not shutil.which("claude"):
         return False
     try:
+        # `claude auth status` exits 0 only when a valid session exists;
+        # `--version` passes even when unauthenticated, causing noisy test failures.
         result = subprocess.run(
-            ["claude", "--version"],
+            ["claude", "auth", "status"],
             capture_output=True,
-            timeout=5,
+            timeout=10,
         )
         return result.returncode == 0
     except Exception:

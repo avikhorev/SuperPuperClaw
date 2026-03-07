@@ -82,6 +82,7 @@ class UserStorage:
         path = os.path.join(self.user_dir, "imap_config.json")
         with open(path, "w") as f:
             json.dump(config, f)
+        os.chmod(path, 0o600)  # owner-read/write only — credentials in plaintext
 
     def load_calendar_config(self) -> dict | None:
         path = os.path.join(self.user_dir, "calendar_config.json")
@@ -106,6 +107,7 @@ class UserStorage:
         path = os.path.join(self.user_dir, "caldav_config.json")
         with open(path, "w") as f:
             json.dump(config, f)
+        os.chmod(path, 0o600)
 
     def append_log(self, user_text: str, assistant_text: str):
         now = datetime.now(timezone.utc)
