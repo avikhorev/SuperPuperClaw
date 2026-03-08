@@ -205,9 +205,11 @@ async def main():
     parser.add_argument("--api-id",  default=os.getenv("TELEGRAM_API_ID"))
     parser.add_argument("--api-hash", default=os.getenv("TELEGRAM_API_HASH"))
     parser.add_argument("--phone",   default=os.getenv("TELEGRAM_PHONE"))
-    parser.add_argument("--bot",     default=os.getenv("TELEGRAM_BOT_USERNAME", "@myclaw_bot"))
+    parser.add_argument("--bot",     default=os.getenv("TELEGRAM_BOT_USERNAME", "@SuperPuperClaw_bot"))
     parser.add_argument("--out",     default="files/live_tests")
     parser.add_argument("--only",    nargs="*", help="Run only these test labels")
+    parser.add_argument("--test-dc", action="store_true", default=os.getenv("TELEGRAM_TEST_DC", "").lower() in ("1", "true"),
+                        help="Use Telegram test DC (149.154.167.40:443). Phone: +99966XXXXX, code: XXXXX")
     args = parser.parse_args()
 
     if not args.api_id or not args.api_hash:
@@ -216,17 +218,24 @@ async def main():
         sys.exit(1)
 
     if not args.phone:
-        print("ERROR: Set TELEGRAM_PHONE in .env or pass --phone")
-        sys.exit(1)
+        if args.test_dc:
+            args.phone = os.getenv("TELEGRAM_PHONE", "+9996621234")
+        else:
+            print("ERROR: Set TELEGRAM_PHONE in .env or pass --phone")
+            sys.exit(1)
 
-    session_path = Path("files") / "telethon_test_session"
+    session_path = Path("files") / ("telethon_testdc_session" if args.test_dc else "telethon_test_session")
     session_path.parent.mkdir(exist_ok=True)
 
     out_dir = Path(args.out) / datetime.utcnow().strftime("%Y%m%d_%H%M%S")
 
-    client = TelegramClient(str(session_path), int(args.api_id), args.api_hash)
+    if args.test_dc:
+        client = TelegramClient(str(session_path), int(args.api_id), args.api_hash,
+                                server=("149.154.167.40", 443))
+    else:
+        client = TelegramClient(str(session_path), int(args.api_id), args.api_hash)
 
-    print(f"Connecting as {args.phone}...")
+    print(f"Connecting as {args.phone} ({'test DC' if args.test_dc else 'production'})...")
     await client.start(phone=args.phone)
     print("Connected.")
 
