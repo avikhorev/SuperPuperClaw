@@ -23,12 +23,12 @@ _MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
 _MARKDOWN_TABLE   = _re.compile(r"^\|.+\|$", _re.MULTILINE)
 
-_MARKDOWN_V2_ESCAPE = _re.compile(r'([_!*\[\]()~`#+\-=|{}.!])')
+_MARKDOWN_V2_SPECIAL = _re.compile(r'([!\[\\\]\(\)\{\}])')
 
 
 def _escape_markdown_v2(text: str) -> str:
-    """Escape special characters for MarkdownV2."""
-    return _MARKDOWN_V2_ESCAPE.sub(r'\\\1', text)
+    """Escape special characters for MarkdownV2 (but not formatting chars like * _ ~ `)."""
+    return _MARKDOWN_V2_SPECIAL.sub(r'\\\1', text)
 
 
 _TMPDIR = _os.path.realpath(_tempfile.gettempdir())

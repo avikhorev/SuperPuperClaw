@@ -39,6 +39,13 @@ TESTS = [
     ("start",           "/start"),
     ("help",            "/help"),
 
+    # Formatting tests (Markdown/Telegram) - explicitly request Markdown
+    ("format_bold_md",    'Reply using MarkdownV2: *bold text*'),
+    ("format_italic_md",  'Reply using MarkdownV2: _italic text_'),
+    ("format_code_md",    'Reply using MarkdownV2: `inline code`'),
+    ("format_bold2_md",  'Reply using MarkdownV2: **bold with asterisks**'),
+    ("format_mixed_md",   'Reply using MarkdownV2: Mix *bold*, _italic_, and `code`'),
+    
     # Conversation
     ("hello",           "Hello! What can you do?"),
     ("math",            "What is 17 * 23?"),
