@@ -1,8 +1,9 @@
 """
 Full-stack E2E tests: fake Telegram transport + real Claude + real BotHandler.
 
-No Telegram account needed. Skipped unless Claude is available
-(ANTHROPIC_API_KEY or authenticated claude CLI).
+No Telegram account needed. These tests are opt-in and skipped unless both:
+  1. `RUN_FULLSTACK_E2E=1` is set
+  2. Claude is available (ANTHROPIC_API_KEY or authenticated claude CLI)
 
 These tests exercise the entire request path:
   FakeUpdate → BotHandler → AgentRunner → Claude API → tools → storage
@@ -21,22 +22,44 @@ from tests.integration.fakes import FakeUpdate, FakeContext, FakeScheduler
 
 # ── auth detection (same logic as tests/live/conftest.py) ─────────────────────
 
+def _has_api_key() -> bool:
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _has_claude_cli() -> bool:
+    """Return True only when the Claude CLI is installed and authenticated."""
+    if not shutil.which("claude"):
+        return False
+    try:
+        result = subprocess.run(
+            ["claude", "auth", "status"],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def _live_available() -> bool:
-    if os.getenv("ANTHROPIC_API_KEY"):
-        return True
-    if shutil.which("claude"):
-        try:
-            return subprocess.run(
-                ["claude", "--version"], capture_output=True, timeout=5
-            ).returncode == 0
-        except Exception:
-            pass
-    return False
+    return _has_api_key() or _has_claude_cli()
+
+
+def _fullstack_enabled() -> bool:
+    return os.getenv("RUN_FULLSTACK_E2E") == "1"
+
+
+def _skip_reason() -> str:
+    if not _fullstack_enabled():
+        return "set RUN_FULLSTACK_E2E=1 to enable full-stack E2E tests"
+    if _live_available():
+        return ""
+    return "requires ANTHROPIC_API_KEY or an authenticated claude CLI (run: claude login)"
 
 
 fullstack = pytest.mark.skipif(
-    not _live_available(),
-    reason="requires ANTHROPIC_API_KEY or an authenticated claude CLI (run: claude login)",
+    not (_fullstack_enabled() and _live_available()),
+    reason=_skip_reason(),
 )
 
 ADMIN_ID = 100
