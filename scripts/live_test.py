@@ -48,6 +48,7 @@ TESTS = [
     
     # Table formatting test
     ("table_md",        'Create a Markdown table with 3 columns: Name, City, Age. Add 3 rows of sample data.'),
+    ("bubblewrap_vs_docker", 'Compare Bubblewrap vs Docker in a Markdown table with columns: Feature, Bubblewrap, Docker. Include at least 5 features like isolation, performance, use case, etc.'),
     
     # Conversation
     ("hello",           "Hello! What can you do?"),
