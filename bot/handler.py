@@ -82,7 +82,7 @@ def _auto_generate_qr(text: str) -> str:
 
 
 def _convert_markdown_tables(text: str) -> str:
-    """Convert Markdown tables to prettytable format in triple backticks."""
+    """Convert Markdown tables to triple backticks for monospace rendering."""
     lines = text.split('\n')
     result = []
     in_table = False
@@ -97,31 +97,15 @@ def _convert_markdown_tables(text: str) -> str:
         else:
             if in_table:
                 if len(table_lines) >= 2:
-                    try:
-                        from prettytable import MARKDOWN
-                        import prettytable as pt
-                        tb = pt.MarkdownTable(table_lines)
-                        tb.set_style(MARKDOWN)
-                        table_str = "```\n" + tb.get_string() + "\n```"
-                        result.append(table_str)
-                    except Exception:
-                        table_str = "```\n" + "\n".join(table_lines) + "\n```"
-                        result.append(table_str)
+                    table_str = "```\n" + "\n".join(table_lines) + "\n```"
+                    result.append(table_str)
                 in_table = False
                 table_lines = []
             result.append(line)
 
     if in_table and len(table_lines) >= 2:
-        try:
-            from prettytable import MARKDOWN
-            import prettytable as pt
-            tb = pt.MarkdownTable(table_lines)
-            tb.set_style(MARKDOWN)
-            table_str = "```\n" + tb.get_string() + "\n```"
-            result.append(table_str)
-        except Exception:
-            table_str = "```\n" + "\n".join(table_lines) + "\n```"
-            result.append(table_str)
+        table_str = "```\n" + "\n".join(table_lines) + "\n```"
+        result.append(table_str)
 
     return "\n".join(result)
 
