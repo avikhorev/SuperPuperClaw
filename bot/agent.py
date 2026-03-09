@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import os
 from datetime import datetime, timezone
 
 from claude_agent_sdk import (
@@ -106,6 +107,9 @@ class AgentRunner:
         history = self.storage.db.get_recent_messages(20)
         system = build_system_prompt(self.storage, history)
         server = self._server
+        
+        # Get model from environment variable
+        model = os.getenv("ANTHROPIC_DEFAULT_MODEL")
 
         options = ClaudeAgentOptions(
             system_prompt=system,
@@ -113,6 +117,7 @@ class AgentRunner:
             mcp_servers={"tools": server},
             permission_mode="bypassPermissions",
             max_turns=10,
+            model=model,
         )
 
         text_blocks = []
