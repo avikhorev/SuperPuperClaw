@@ -91,6 +91,20 @@ TESTS = [
     # Log search
     ("log_search",      "Search my logs for 'water'"),
 
+    # Email
+    ("email_status",    "/status"),
+    ("email_list",      "List my recent emails"),
+    ("email_unread",    "Show me unread emails"),
+    ("email_search",    "Search my emails for 'meeting'"),
+    ("email_send",      "Send an email to test@example.com with subject 'Test' and body 'This is a test message'"),
+
+    # Calendar
+    ("calendar_status", "What calendar integrations do I have?"),
+    ("calendar_list",   "Show me my calendar events for today"),
+    ("calendar_upcoming", "What are my upcoming events this week?"),
+    ("calendar_create", "Create a calendar event: Team meeting tomorrow at 2pm for 1 hour"),
+    ("calendar_search", "Search my calendar for 'standup'"),
+
     # Cancel
     ("cancel",          "/cancel"),
 ]
