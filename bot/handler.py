@@ -21,6 +21,8 @@ _PHOTO_FILE_TOKEN = _re.compile(r"PHOTO_FILE:(\S+)")
 _PHOTO_URL_TOKEN  = _re.compile(r"PHOTO_URL:(\S+)")
 _MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
+_MARKDOWN_TABLE   = _re.compile(r"^\|.+\|$", _re.MULTILINE)
+
 
 _TMPDIR = _os.path.realpath(_tempfile.gettempdir())
 
@@ -72,9 +74,55 @@ def _auto_generate_qr(text: str) -> str:
     return text  # fallback to original text if generation failed
 
 
+def _convert_markdown_tables(text: str) -> str:
+    """Convert Markdown tables to prettytable format in triple backticks."""
+    lines = text.split('\n')
+    result = []
+    in_table = False
+    table_lines = []
+
+    for line in lines:
+        if _MARKDOWN_TABLE.match(line.strip()):
+            if not in_table:
+                in_table = True
+                table_lines = []
+            table_lines.append(line)
+        else:
+            if in_table:
+                if len(table_lines) >= 2:
+                    try:
+                        from prettytable import MARKDOWN
+                        import prettytable as pt
+                        tb = pt.MarkdownTable(table_lines)
+                        tb.set_style(MARKDOWN)
+                        table_str = "```\n" + tb.get_string() + "\n```"
+                        result.append(table_str)
+                    except Exception:
+                        table_str = "```\n" + "\n".join(table_lines) + "\n```"
+                        result.append(table_str)
+                in_table = False
+                table_lines = []
+            result.append(line)
+
+    if in_table and len(table_lines) >= 2:
+        try:
+            from prettytable import MARKDOWN
+            import prettytable as pt
+            tb = pt.MarkdownTable(table_lines)
+            tb.set_style(MARKDOWN)
+            table_str = "```\n" + tb.get_string() + "\n```"
+            result.append(table_str)
+        except Exception:
+            table_str = "```\n" + "\n".join(table_lines) + "\n```"
+            result.append(table_str)
+
+    return "\n".join(result)
+
+
 async def _send_reply(message, text: str):
     """Send reply, extracting PHOTO_FILE:/PHOTO_URL: tokens and sending as photos."""
     text = _auto_generate_qr(text)
+    text = _convert_markdown_tables(text)
     photos, caption = _extract_photos(text)
     for i, (kind, ref) in enumerate(photos):
         cap = caption if i == 0 else None
@@ -88,11 +136,12 @@ async def _send_reply(message, text: str):
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
     if not photos:
-        await message.reply_text(text, parse_mode="Markdown")
+        await message.reply_text(text, parse_mode="MarkdownV2")
 
 
 async def _send_reply_to_chat(bot, chat_id: int, text: str):
     """Like _send_reply but using bot.send_* directly."""
+    text = _convert_markdown_tables(text)
     photos, caption = _extract_photos(text)
     for i, (kind, ref) in enumerate(photos):
         cap = caption if i == 0 else None
@@ -106,7 +155,7 @@ async def _send_reply_to_chat(bot, chat_id: int, text: str):
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
     if not photos:
-        await bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
 
 
 def _build_help_text(config, storage) -> str:
