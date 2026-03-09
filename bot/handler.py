@@ -23,7 +23,7 @@ _MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
 _MARKDOWN_TABLE   = _re.compile(r"^\|.+\|$", _re.MULTILINE)
 
-_MARKDOWN_V2_SPECIAL = _re.compile(r'([!\[\\\]\(\)\{\}])')
+_MARKDOWN_V2_SPECIAL = _re.compile(r'([!\[\\\]\(\)\{\}\.\=])')
 
 
 def _escape_markdown_v2(text: str) -> str:
@@ -159,7 +159,11 @@ async def _send_reply(message, text: str):
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
     if not photos:
-        await message.reply_text(_escape_markdown_v2(text), parse_mode="MarkdownV2")
+        try:
+            await message.reply_text(_escape_markdown_v2(text), parse_mode="MarkdownV2")
+        except Exception as e:
+            logger.warning("MarkdownV2 failed, sending plain text: %s", e)
+            await message.reply_text(text)
 
 
 async def _send_reply_to_chat(bot, chat_id: int, text: str):
@@ -179,7 +183,11 @@ async def _send_reply_to_chat(bot, chat_id: int, text: str):
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
     if not photos:
-        await bot.send_message(chat_id=chat_id, text=text, parse_mode="MarkdownV2")
+        try:
+            await bot.send_message(chat_id=chat_id, text=_escape_markdown_v2(text), parse_mode="MarkdownV2")
+        except Exception as e:
+            logger.warning("MarkdownV2 failed, sending plain text: %s", e)
+            await bot.send_message(chat_id=chat_id, text=text)
 
 
 def _build_help_text(config, storage) -> str:
