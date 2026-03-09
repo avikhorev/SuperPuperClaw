@@ -23,6 +23,13 @@ _MARKDOWN_IMAGE   = _re.compile(r"!\[[^\]]*\]\((https?://\S+?)\)")
 
 _MARKDOWN_TABLE   = _re.compile(r"^\|.+\|$", _re.MULTILINE)
 
+_MARKDOWN_V2_ESCAPE = _re.compile(r'([_!*\[\]()~`#+\-=|{}.!])')
+
+
+def _escape_markdown_v2(text: str) -> str:
+    """Escape special characters for MarkdownV2."""
+    return _MARKDOWN_V2_ESCAPE.sub(r'\\\1', text)
+
 
 _TMPDIR = _os.path.realpath(_tempfile.gettempdir())
 
@@ -136,12 +143,13 @@ async def _send_reply(message, text: str):
         except Exception as e:
             logger.error("Failed to send photo %s: %s", ref, e)
     if not photos:
-        await message.reply_text(text, parse_mode="MarkdownV2")
+        await message.reply_text(_escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
 async def _send_reply_to_chat(bot, chat_id: int, text: str):
     """Like _send_reply but using bot.send_* directly."""
     text = _convert_markdown_tables(text)
+    text = _escape_markdown_v2(text)
     photos, caption = _extract_photos(text)
     for i, (kind, ref) in enumerate(photos):
         cap = caption if i == 0 else None
