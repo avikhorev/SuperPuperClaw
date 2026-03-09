@@ -82,7 +82,7 @@ def _auto_generate_qr(text: str) -> str:
 
 
 def _convert_markdown_tables(text: str) -> str:
-    """Convert Markdown tables to triple backticks for monospace rendering."""
+    """Convert Markdown tables to aligned triple backticks for monospace rendering."""
     lines = text.split('\n')
     result = []
     in_table = False
@@ -93,18 +93,50 @@ def _convert_markdown_tables(text: str) -> str:
             if not in_table:
                 in_table = True
                 table_lines = []
-            table_lines.append(line)
+            table_lines.append(line.strip())
         else:
             if in_table:
                 if len(table_lines) >= 2:
-                    table_str = "```\n" + "\n".join(table_lines) + "\n```"
+                    # Calculate column widths
+                    col_widths = []
+                    for row in table_lines:
+                        cells = [c.strip() for c in row.split('|') if c.strip()]
+                        for i, cell in enumerate(cells):
+                            if i >= len(col_widths):
+                                col_widths.append(len(cell))
+                            else:
+                                col_widths[i] = max(col_widths[i], len(cell))
+                    
+                    # Reconstruct aligned table
+                    aligned_rows = []
+                    for row in table_lines:
+                        cells = [c.strip() for c in row.split('|') if c.strip()]
+                        aligned_cells = [cell.ljust(col_widths[i]) for i, cell in enumerate(cells)]
+                        aligned_rows.append('| ' + ' | '.join(aligned_cells) + ' |')
+                    
+                    table_str = "```\n" + '\n'.join(aligned_rows) + "\n```"
                     result.append(table_str)
                 in_table = False
                 table_lines = []
             result.append(line)
 
     if in_table and len(table_lines) >= 2:
-        table_str = "```\n" + "\n".join(table_lines) + "\n```"
+        col_widths = []
+        for row in table_lines:
+            cells = [c.strip() for c in row.split('|') if c.strip()]
+            for i, cell in enumerate(cells):
+                if i >= len(col_widths):
+                    col_widths.append(len(cell))
+                else:
+                    col_widths[i] = max(col_widths[i], len(cell))
+        
+        aligned_rows = []
+        for row in table_lines:
+            cells = [c.strip() for c in row.split('|') if c.strip()]
+            aligned_cells = [cell.ljust(col_widths[i]) for i, cell in enumerate(cells)]
+            aligned_rows.append('| ' + ' | '.join(aligned_cells) + ' |')
+        
+        table_str = "```\n" + '\n'.join(aligned_rows) + "\n```"
         result.append(table_str)
 
     return "\n".join(result)
