@@ -46,6 +46,9 @@ TESTS = [
     ("format_bold2_md",  'Reply using MarkdownV2: **bold with asterisks**'),
     ("format_mixed_md",   'Reply using MarkdownV2: Mix *bold*, _italic_, and `code`'),
     
+    # Table formatting test
+    ("table_md",        'Create a Markdown table with 3 columns: Name, City, Age. Add 3 rows of sample data.'),
+    
     # Conversation
     ("hello",           "Hello! What can you do?"),
     ("math",            "What is 17 * 23?"),
