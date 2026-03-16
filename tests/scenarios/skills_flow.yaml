@@ -1,0 +1,11 @@
+name: skills_flow
+description: Save and retrieve a skill
+
+turns:
+  - user: "save a skill called weekly_report with content: summarize all tasks completed this week"
+    mock_agent_reply: "Skill 'weekly_report' saved."
+    assert_skill_exists: "weekly_report"
+
+  - user: "use the weekly_report skill"
+    mock_agent_reply: "summarize all tasks completed this week"
+    assert_log_entry: true

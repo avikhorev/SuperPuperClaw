@@ -5,5 +5,10 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
+      - claude_auth:/home/botuser/.claude
+      - ./youtube_cookies.txt:/app/youtube_cookies.txt
     environment:
       - DATA_DIR=/data
+
+volumes:
+  claude_auth:
